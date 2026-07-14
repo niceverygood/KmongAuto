@@ -1,0 +1,20 @@
+{
+  "name": "kmongauto",
+  "version": "1.0.0",
+  "description": "크몽 프로젝트 의뢰 자동 지원 봇 (wishket-automation 자매 프로젝트)",
+  "main": "index.js",
+  "scripts": {
+    "preflight": "node scripts/check-setup.js",
+    "scheduler": "bash run-scheduler.sh",
+    "import-session": "node scripts/import-session.js",
+    "export-session": "node scripts/export-session.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.998.0",
+    "playwright": "^1.60.0"
+  }
+}
