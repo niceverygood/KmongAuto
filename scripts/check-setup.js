@@ -90,10 +90,8 @@ async function checkUrl(url, timeoutMs = 15000) {
           await new Promise(r => setTimeout(r, 2500));
           const linkText = await page.$$eval('a, button', els => els.map(e => e.textContent || '').join(' '));
           const loggedIn = /마이크몽|로그아웃/.test(linkText);
-          const hasLoginLink = /로그인/.test(linkText) && /회원가입/.test(linkText);
-          const ok = loggedIn || !hasLoginLink;
-          record('크몽 로그인', ok,
-            ok ? '세션 유효' : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)',
+          record('크몽 로그인', loggedIn,
+            loggedIn ? '세션 유효' : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)',
             { optional: DRY_RUN }); // dry-run 모드에서는 로그인 없어도 preflight 통과
         } catch (e) {
           record('크몽 로그인', false, `확인 실패: ${e.message.split('\n')[0]}`, { optional: DRY_RUN });
