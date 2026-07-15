@@ -3,8 +3,7 @@
 /**
  * 크몽 자동화 스케줄러
  *
- * - 새 의뢰 스크래핑(공개 JSON API) → 필터링 → Phase 1~3 자동 실행
- * - UI/UX 전용, 기획 전용, 상주(RESIDENT) 형태 프로젝트 제외
+ * - 새 의뢰 스크래핑(공개 JSON API) → Phase 1~3 자동 실행 (카테고리 필터 없음, 전 분야 지원)
  * - 완료 시 슬랙 #위시켓-알림 채널(위시켓 봇과 공용 웹훅)에 "[크몽]" 접두사로 결과 전송
  * - 크몽은 댓글 기능이 없으므로 위시켓 봇의 "비밀 댓글" 단계는 없음
  */
@@ -17,25 +16,6 @@ const { WORKSPACE } = require('../lib/workspace');
 const { sendSlack } = require('../lib/slack');
 const SEEN_FILE = path.join(WORKSPACE, 'data/kmong-seen.json');
 
-const SKIP_KEYWORDS = [
-  'UI/UX', 'UI/ UX', 'UX/UI', 'UX 디자인', 'UI 디자인',
-  '디자인 기획', '기획만', '기획 전문', 'UX 기획',
-  '서비스 기획', '기획서 작성', '앱 기획', '웹 기획',
-  '화면설계', '스토리보드', '와이어프레임', '프로토타입 기획',
-  'IA 설계', '정보구조', '그래픽 디자인', '브랜딩 디자인',
-  '로고 디자인', '배너 디자인', '영상 편집', '영상 제작',
-  '모션 그래픽', '일러스트', '캐릭터 디자인',
-  'PMO', '사업관리', // 상주형 관리 인력 의뢰 제외
-];
-
-const INCLUDE_KEYWORDS = [
-  '개발', '구축', '제작', 'API', '앱 개발', '웹 개발',
-  '백엔드', '프론트엔드', 'Flutter', 'React', 'Next.js',
-  'Spring', 'Node', 'Python', 'Java', 'Swift', 'Kotlin',
-  '자동화', '크롤링', 'AI', '머신러닝', '데이터',
-  '플랫폼', '시스템', '솔루션', '서버',
-];
-
 function loadSeen() {
   if (!fs.existsSync(SEEN_FILE)) return { projects: [] };
   return JSON.parse(fs.readFileSync(SEEN_FILE, 'utf-8'));
@@ -45,16 +25,6 @@ function saveSeen(data) {
   const dir = path.dirname(SEEN_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(SEEN_FILE, JSON.stringify(data, null, 2));
-}
-
-function shouldSkip(title) {
-  const t = title || '';
-  for (const kw of SKIP_KEYWORDS) {
-    if (t.includes(kw)) return { skip: true, reason: `스킵 키워드: "${kw}"` };
-  }
-  const hasDevKeyword = INCLUDE_KEYWORDS.some(kw => t.includes(kw));
-  if (!hasDevKeyword) return { skip: true, reason: '개발 관련 키워드 없음' };
-  return { skip: false };
 }
 
 function runPhase1(projectId) {
@@ -220,15 +190,6 @@ function runPhase3(projectId, phase1Data) {
 
 async function processProject(project, seenData) {
   const projectId = String(project.id);
-
-  const { skip, reason } = shouldSkip(project.title);
-
-  if (skip) {
-    console.log(`⏭️  ${projectId} 스킵: ${reason} (${project.title})`);
-    seenData.projects.push(projectId);
-    saveSeen(seenData);
-    return;
-  }
 
   console.log(`\n🚀 ${projectId}: ${project.title}`);
 
