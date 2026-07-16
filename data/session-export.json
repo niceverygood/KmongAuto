@@ -1,0 +1,425 @@
+{
+  "exportedAt": "2026-07-16T05:31:24.231Z",
+  "cookies": [
+    {
+      "name": "x-kmong-authorization-refreshment",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwUjBQMDdNMjlEUU4zLTlIR0NJUCIsInVkdiI6eyJpc1JlbWVtYmVyIjp0cnVlfSwiaWF0IjoxNzg0MTc5ODQyLCJleHAiOjE3ODY3NzE4NDJ9.YF5SEA-mpGD_fgLmibdGObc5eUuvc2KBvdlFvb_PPvM",
+      "domain": ".kid.kmong.com",
+      "path": "/api/authentication/v1",
+      "expires": 1786771840.583995,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "kmong_CID",
+      "value": "9a762295cfc54571d6e071b87a530154",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739706.532104,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_kmpid",
+      "value": "km|kmong.com|1784179706534|4ed7685d-5164-412d-b404-02495a426d8f",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1791955706,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_fwb",
+      "value": "640ZiUR0HpA3Gneexa6t4g.1784179706641",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739842.697167,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_hid",
+      "value": "8eeb6bac-5279-43f4-85af-714aaafea112",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739706.704271,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_did_nAziLf0wAEsXBBEsJvnE3Kycqp7rQncg",
+      "value": "8eeb6bac-5279-43f4-85af-714aaafea112",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843.013904,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_mkt_nAziLf0w",
+      "value": "%7B%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739706.727861,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_fbp",
+      "value": "fb.1.1784179706777.981569216448053120",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1791955844,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_gid",
+      "value": "GA1.2.1340747650.1784179707",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1784266243,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_tt_enable_cookie",
+      "value": "1",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1817875843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ttp",
+      "value": "01KXMPBKBK5JEQ4Q00JZXXWESE_.tt.1",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1817875843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_fcOM",
+      "value": "{\"k\":\"ac637103592b585b-42cea89e19f696488222797\",\"i\":\"175.113.78.217.19811\",\"r\":1784179707267}",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739707.268882,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_clck",
+      "value": "yeo6hf%5E2%5Eg7s%5E0%5E2388",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1815715707,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__obref",
+      "value": "5fd9ead4-352a-4a29-9a69-ff1dd0c38097",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1815715707.44731,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "airbridge_migration_metadata__kmong1",
+      "value": "%7B%22version%22%3A%221.11.13%22%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739844.415275,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ab180ClientId",
+      "value": "88c9b1ad-cbca-4d0a-b71b-640a30ba8757",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739844.417407,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ch-veil-id",
+      "value": "7c87b6f7-b213-43f3-91c3-ff44b23393c5",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1815715844.364701,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "x-kmong-oauth2-csrf-state",
+      "value": "0R0NZR3S8QP3Z-I864LD",
+      "domain": "kid.kmong.com",
+      "path": "/",
+      "expires": 1784180314.519666,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_gcl_au",
+      "value": "1.1.2056987596.1784179707.517313419.1784179755.1784179841",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1791955707,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "x-kmong-authorization",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjE2OTMwNywidWR2Ijp7ImlzUmVtZW1iZXIiOnRydWV9LCJpYXQiOjE3ODQxNzk4NDIsImV4cCI6MTc4NDE4MzQ0Mn0.VznqMIZS6TGODAbFqRsuVJu76Kjwjg2vApL87DFjU64",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1784183440.583938,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "x-kmong-authorization-exp",
+      "value": "2026-07-16T06%3A30%3A42Z",
+      "domain": "kmong.com",
+      "path": "/",
+      "expires": 1784183442,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "x-kmong-authorization-refreshment-exp",
+      "value": "2026-08-15T05%3A30%3A42Z",
+      "domain": "kmong.com",
+      "path": "/",
+      "expires": 1786771842,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_gat_gtag_UA_9241865_16",
+      "value": "1",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1784179901,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ab.storage.deviceId.c0e540e1-8a7a-486f-b89f-438169b985eb",
+      "value": "%7B%22g%22%3A%220c7f163e-69b7-f714-854b-69501c5e7401%22%2C%22c%22%3A1784179706855%2C%22l%22%3A1784179842019%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ab.storage.userId.c0e540e1-8a7a-486f-b89f-438169b985eb",
+      "value": "%7B%22g%22%3A%22169307%22%2C%22c%22%3A1784179842018%2C%22l%22%3A1784179842019%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "airbridge_user__kmong1",
+      "value": "%7B%22externalUserID%22%3A%22169307%22%2C%22externalUserEmail%22%3A%22niceverygood1%40gmail.com%22%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739844.694268,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "wcs_bt",
+      "value": "s_5113d520404d:1784179842",
+      "domain": "kmong.com",
+      "path": "/",
+      "expires": 1818739842.897316,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_session_id_AEsXBBEsJvnE3Kycqp7rQncg",
+      "value": "1784179843012.686f7e2c",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843.013052,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_uid_nAziLf0wAEsXBBEsJvnE3Kycqp7rQncg",
+      "value": "169307",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843.01407,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ab.storage.sessionId.c0e540e1-8a7a-486f-b89f-438169b985eb",
+      "value": "%7B%22g%22%3A%2246f036dd-e28b-20bc-0434-72a52f7055d4%22%2C%22e%22%3A1784181643389%2C%22c%22%3A1784179842018%2C%22l%22%3A1784179843389%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "amp_63f6b1",
+      "value": "0RKwCNb8J5n4Zv7VJxBihE.MTY5MzA3..1jtkmbits.1jtkmfoai.c.3.f",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1815715843,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga",
+      "value": "GA1.2.1904408963.1784179707",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739843.451357,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ch-session-88760",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzZXMiLCJleHAiOjE3ODY3NzE4NDQsImlhdCI6MTc4NDE3OTg0NCwia2V5IjoiODg3NjAtNmE1ODZiZmVlMmE2MTYyNzUwNzgifQ.d-p-Vb5oZhBDmiiUaVDyRo86AWZAX7YSXgsxOFuGDM4",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1784181644.364865,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_dd_s_v2",
+      "value": "aid=3e2bf1db-3be1-4f54-89dd-c80d49aa7d76&id=e1b84219-0942-4c07-aaa5-c134d723c38b&created=1784179710357&expire=1784180744424&c=0",
+      "domain": "kmong.com",
+      "path": "/",
+      "expires": 1815715844.424,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "hideBizIndustryModal",
+      "value": "true",
+      "domain": "kmong.com",
+      "path": "/",
+      "expires": 1784439044.525031,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "airbridge_session__kmong1",
+      "value": "%7B%22id%22%3A%22571b8ec7-2f25-45a1-9e7d-6a43ae710b41%22%2C%22timeout%22%3A1800000%2C%22start%22%3A1784179710349%2C%22end%22%3A1784179844693%7D",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739844.694039,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_clsk",
+      "value": "203fe9%5E1784179844806%5E3%5E1%5Ea.clarity.ms%2Fcollect",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1784266244,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ttcsid_C8A7JKRA1SKTB42PTQP0",
+      "value": "1784179707253::LrAZ0NbF6RLIBF_JnCBH.1.1784179845762.1",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1817875845,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "ttcsid",
+      "value": "1784179707254::97wOHbdw_7s2JnM7iFUZ.1.1784179845762.0::1.134334.136512::137245.14.740.645::0.0.0",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1817875845,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga_G0KJ1ELL4R",
+      "value": "GS2.1.s1784179707$o1$g1$t1784179854$j48$l0$h0",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739854.555446,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga_EKC315H4MC",
+      "value": "GS2.1.s1784179707$o1$g1$t1784179854$j48$l0$h0",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739854.5603,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_hackle_last_event_ts_AEsXBBEsJvnE3Kycqp7rQncg",
+      "value": "1784179854563",
+      "domain": ".kmong.com",
+      "path": "/",
+      "expires": 1818739854.563939,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ]
+}
