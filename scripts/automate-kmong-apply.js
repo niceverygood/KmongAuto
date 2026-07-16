@@ -137,7 +137,10 @@ async function findByText(page, selectors, textPattern) {
     }
 
     await page.goto(projectUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(3000);
+    // SPA라 domcontentloaded 시점엔 본문 API 응답이 아직 안 온 상태 — networkidle까지 기다려야
+    // "제안하기" 버튼이 안정적으로 렌더링된다 (고정 sleep만으론 플레이키).
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await sleep(1500);
     console.log('✅\n');
 
     // 로그인 상태 확인 — "로그인 후 제안하기" 문구가 보이면 세션 미인증
@@ -159,7 +162,10 @@ async function findByText(page, selectors, textPattern) {
 
     console.log('[4/8] 🖱️  제안하기 버튼 클릭...');
     await applyButton.click();
-    await sleep(3000);
+    // 제안 폼은 모달로 렌더링되며 domcontentloaded만으로는 아직 안 뜬 상태일 수 있다 —
+    // networkidle까지 기다려야 안정적으로 textarea/input이 나타난다 (고정 sleep만으론 플레이키).
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await sleep(1500);
     console.log(`   현재 URL: ${page.url()}`);
     console.log('✅\n');
 
@@ -184,9 +190,50 @@ async function findByText(page, selectors, textPattern) {
     console.log(`   ${APPLICATION_TEMPLATE.length}자 입력 완료`);
     console.log('✅\n');
 
-    console.log('[6/8] 💰 예상 금액/기간 필드 확인...');
-    const numberInputs = await page.$$('input[type="number"], input[name*="amount"], input[name*="price"], input[name*="budget"]');
-    console.log(`   숫자/금액 관련 input ${numberInputs.length}개 발견 (자동 입력은 생략 — 플랫폼 기본값/의뢰 조건 그대로 유지)`);
+    console.log('[6/8] 💰 제안 금액/기간/세금계산서 입력...');
+    // amount, days는 placeholder로만 의뢰 기본값이 표시될 뿐 실제 value는 비어있어
+    // 채워주지 않으면 제출이 막힌다 — 의뢰에 표시된 기본값(placeholder) 그대로 제안한다.
+    const amountInput = await page.$('input[name="amount"]');
+    if (amountInput) {
+      const placeholder = await amountInput.getAttribute('placeholder').catch(() => null);
+      if (placeholder) {
+        await reactSafeFill(amountInput, placeholder);
+        console.log(`   제안 예산: ${placeholder}만원 입력`);
+      }
+    } else {
+      console.log('   ⚠️ 예산 입력란(name="amount")을 찾지 못함');
+    }
+
+    const daysInput = await page.$('input[name="days"]');
+    if (daysInput) {
+      const placeholder = await daysInput.getAttribute('placeholder').catch(() => null);
+      if (placeholder) {
+        await reactSafeFill(daysInput, placeholder);
+        console.log(`   제안 기간: ${placeholder}일 입력`);
+      }
+    } else {
+      console.log('   ⚠️ 기간 입력란(name="days")을 찾지 못함');
+    }
+
+    // 세금계산서 발행 여부 — 의뢰 상세에 "세금계산서: 필요"로 명시된 경우가 많아 기본은 "가능" 선택.
+    const taxInvoiceButtons = await page.$$('button');
+    let clickedTaxButton = false;
+    for (const btn of taxInvoiceButtons) {
+      const text = await btn.evaluate(el => el.textContent.trim()).catch(() => '');
+      if (text === '가능') {
+        await btn.click().catch(() => {});
+        clickedTaxButton = true;
+        break;
+      }
+    }
+    console.log(clickedTaxButton ? '   세금계산서 발행 여부: "가능" 선택' : '   ⚠️ 세금계산서 발행 여부 버튼을 찾지 못함');
+
+    // 필수 동의 체크박스 (제안 금액 확인 / 수수료 확인)
+    const checkBillingAmount = await page.$('#checkBillingAmount');
+    const checkCommission = await page.$('#checkCommission');
+    if (checkBillingAmount) await checkBillingAmount.click().catch(() => {});
+    if (checkCommission) await checkCommission.click().catch(() => {});
+    console.log(`   동의 체크박스: ${[checkBillingAmount, checkCommission].filter(Boolean).length}/2개 체크`);
     console.log('✅\n');
 
     console.log('[7/8] 📁 포트폴리오 설명 입력 시도...');
@@ -223,11 +270,11 @@ async function findByText(page, selectors, textPattern) {
       process.exit(0);
     }
 
-    const submitButton = await findByText(page, [
-      'button:has-text("제안서 제출")',
-      'button:has-text("제안하기")',
-      'button[type="submit"]',
-    ], /제출|등록/);
+    // 모달이 열려도 원래 페이지의 "제안하기" CTA 버튼이 DOM에 그대로 남아있고,
+    // 모달 자체의 제출 버튼도 같은 텍스트("제안하기")를 쓴다. 모달은 나중에 DOM에
+    // 추가되므로 동일 텍스트 버튼 중 마지막 것이 실제 제출 버튼이다.
+    const proposalButtons = await page.$$('button:has-text("제안하기")');
+    const submitButton = proposalButtons.length > 0 ? proposalButtons[proposalButtons.length - 1] : null;
 
     if (!submitButton) {
       throw new Error('제출 버튼을 찾을 수 없습니다 (셀렉터 확인 필요)');
