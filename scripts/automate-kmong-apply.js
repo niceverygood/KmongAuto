@@ -330,13 +330,37 @@ async function findByText(page, selectors, textPattern) {
     await submitButton.evaluate(el => el.scrollIntoView({ block: 'center' }));
     await sleep(1000);
     await submitButton.evaluate(el => el.click());
-    await sleep(3000);
+    await sleep(2500);
 
-    const confirmButton = await page.$('button:has-text("확인"), button:has-text("제출")').catch(() => null);
-    if (confirmButton) {
-      await confirmButton.click().catch(() => {});
-      await sleep(3000);
+    // 제출을 누르면 "이 내용으로 최종 제안할까요?" 확인 다이얼로그가 뜬다.
+    // 취소/제안하기 두 버튼이 있으며 최종 "제안하기"를 눌러야 실제 접수된다.
+    // (이 다이얼로그를 못 눌러 폼이 열린 채 멈추던 실사례가 있어 명시적으로 처리.)
+    async function clickFinalConfirm() {
+      const confirmSelectors = [
+        'button:has-text("최종")',
+        'button:has-text("확인")',
+        'button:has-text("제안하기")',
+        'button:has-text("제출")',
+      ];
+      // 다이얼로그가 뜰 시간을 준다
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const dialogText = await page.evaluate(() => document.body.innerText).catch(() => '');
+        const hasDialog = /최종\s*제안|수정할\s*수\s*없|제안할까요/.test(dialogText);
+        if (!hasDialog) { await sleep(800); continue; }
+        // 다이얼로그 내부의 확인 버튼(마지막 매치 = 다이얼로그가 가장 최근에 append됨)
+        for (const sel of confirmSelectors) {
+          const btns = await page.$$(sel);
+          if (btns.length) {
+            await btns[btns.length - 1].click().catch(() => {});
+            await sleep(2500);
+            return true;
+          }
+        }
+      }
+      return false;
     }
+    await clickFinalConfirm();
+    await sleep(2000);
 
     // 성공 검증 1: 제출이 수리되면 모달이 닫힌다 — textarea가 그대로면 검증 실패로
     // 폼이 열려있는 것 (첫 시도에서 URL만 보고 성공으로 오판한 전례가 있어 강화).
