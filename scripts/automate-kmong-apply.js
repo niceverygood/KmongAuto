@@ -84,6 +84,21 @@ async function reactSafeFill(handle, text) {
   await handle.evaluate(el => el.dispatchEvent(new Event('blur', { bubbles: true })));
 }
 
+// 숫자 전용 입력칸용 채우기 — reactSafeFill의 스페이스+백스페이스 트릭은 숫자 필터가
+// 스페이스를 무시해 백스페이스만 적용되는 바람에 마지막 자릿수를 지워버린다
+// (500 → 50으로 입력돼 최소 금액 검증에 걸린 실사례). 키보드 타이핑 후 값을 검증한다.
+async function fillNumeric(page, handle, digits) {
+  await handle.click({ clickCount: 3 });
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type(String(digits), { delay: 60 });
+  await sleep(300);
+  const value = await handle.evaluate(el => el.value);
+  if (value.replace(/[^0-9]/g, '') !== String(digits)) {
+    throw new Error(`숫자 입력 검증 실패: 기대 "${digits}", 실제 "${value}"`);
+  }
+  return value;
+}
+
 async function findByText(page, selectors, textPattern) {
   for (const selector of selectors) {
     try {
@@ -197,8 +212,8 @@ async function findByText(page, selectors, textPattern) {
     if (amountInput) {
       const placeholder = await amountInput.getAttribute('placeholder').catch(() => null);
       if (placeholder) {
-        await reactSafeFill(amountInput, placeholder);
-        console.log(`   제안 예산: ${placeholder}만원 입력`);
+        const filled = await fillNumeric(page, amountInput, placeholder.replace(/[^0-9]/g, ''));
+        console.log(`   제안 예산: ${filled}만원 입력 (값 검증됨)`);
       }
     } else {
       console.log('   ⚠️ 예산 입력란(name="amount")을 찾지 못함');
@@ -208,8 +223,8 @@ async function findByText(page, selectors, textPattern) {
     if (daysInput) {
       const placeholder = await daysInput.getAttribute('placeholder').catch(() => null);
       if (placeholder) {
-        await reactSafeFill(daysInput, placeholder);
-        console.log(`   제안 기간: ${placeholder}일 입력`);
+        const filled = await fillNumeric(page, daysInput, placeholder.replace(/[^0-9]/g, ''));
+        console.log(`   제안 기간: ${filled}일 입력 (값 검증됨)`);
       }
     } else {
       console.log('   ⚠️ 기간 입력란(name="days")을 찾지 못함');
