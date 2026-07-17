@@ -78,6 +78,14 @@ function runPhase1(projectId) {
 
 function runPhase2(prototypePromptFile, proposalContentFile) {
   const mode = process.env.DESIGN_MODE || 'auto';
+
+  // R2 자격증명이 없으면 시제품을 생성해도 업로드(공유 URL 발급)가 불가능하다.
+  // 10분+ 걸리는 생성 자체를 건너뛰고 시제품 없이 제안하는 쪽으로 우아하게 강등한다.
+  if (!process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
+    console.log('[Phase 2] ⚠️  R2 자격증명 미설정 — 시제품 생성 생략, 시제품 없이 제안 진행');
+    return null;
+  }
+
   console.log(`[Phase 2] 시제품 생성 시작 (mode: ${mode})...`);
 
   let result;
@@ -136,9 +144,11 @@ function runPhase2(prototypePromptFile, proposalContentFile) {
   }
 
   if (!prototypeUrl) {
-    console.error(`  ❌ Prototype URL을 찾을 수 없습니다`);
+    // 시제품은 제안의 부가 요소 — 업로드/추출 실패로 지원 자체를 막지 않고
+    // 시제품 없이 제안하는 쪽으로 강등한다.
+    console.error(`  ⚠️  Prototype URL을 찾을 수 없습니다 — 시제품 없이 제안 진행`);
     console.error(`  stdout (last 500): ${output.slice(-500)}`);
-    throw new Error('Prototype URL 추출 실패');
+    return null;
   }
 
   if (proposalContentFile && fs.existsSync(proposalContentFile)) {
@@ -204,6 +214,19 @@ async function processProject(project, seenData) {
 
     const prototypeUrl = runPhase2(phase1.prototypePromptFile, phase1.proposalContentFile);
     phase1.prototypeUrl = prototypeUrl;
+
+    // 시제품 없이 진행하는 경우: 제안서에 남은 "시제품 미리보기: {{PROTOTYPE_URL}}" 줄을
+    // 제거해 미치환 변수 검사(수동 제안 경로)에 걸리지 않게 한다.
+    if (!prototypeUrl && phase1.proposalContentFile && fs.existsSync(phase1.proposalContentFile)) {
+      let content = fs.readFileSync(phase1.proposalContentFile, 'utf-8');
+      content = content
+        .split('\n')
+        .filter(line => !line.includes('{{PROTOTYPE_URL}}'))
+        .join('\n')
+        .replace(/^\s*\n+/, '');
+      fs.writeFileSync(phase1.proposalContentFile, content, 'utf-8');
+      console.log('  ℹ️  시제품 없이 제안 — 제안서에서 시제품 링크 줄 제거');
+    }
 
     if (phase1.proposalContentFile && fs.existsSync(phase1.proposalContentFile)) {
       const content = fs.readFileSync(phase1.proposalContentFile, 'utf-8');
