@@ -252,6 +252,11 @@ async function processProject(project, seenData) {
 
     const { success, dryRun } = runPhase3(projectId, phase1);
 
+    // 제출 실패는 seen에 넣지 않는다 — 다음 회차에 재시도 (성공/드라이런만 완료 처리)
+    if (!success && !dryRun) {
+      throw new Error('Phase 3 제출 실패 (phase3 로그 확인)');
+    }
+
     seenData.projects.push(projectId);
     saveSeen(seenData);
 
