@@ -336,7 +336,10 @@ ${detail.description}`.trim();
           prototypePromptFile: files.prototypePrompt,
           proposalContentFile: files.proposalContent,
           portfolioFile: files.portfolio,
-          metaFile: files.meta
+          metaFile: files.meta,
+          // 제안서 섹션 없이 LLM 응답만 있으면 "역량 불일치 등으로 작성을 거부한 것" —
+          // 스케줄러가 재시도 불가 스킵으로 분류할 수 있도록 응답 경로를 넘긴다.
+          llmResponseFile: llmResponsePath
         }));
 
       } catch (error) {

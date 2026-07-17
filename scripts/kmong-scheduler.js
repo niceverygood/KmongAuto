@@ -69,6 +69,7 @@ function runPhase1(projectId) {
       proposalContentFile: phase1Data.proposalContentFile,
       prototypePromptFile: phase1Data.prototypePromptFile,
       portfolioFile: phase1Data.portfolioFile,
+      llmResponseFile: phase1Data.llmResponseFile,
       title: phase1Data.projectTitle || projectId
     };
   }
@@ -210,7 +211,27 @@ async function processProject(project, seenData) {
       saveSeen(seenData);
       return;
     }
-    if (!phase1.proposalContentFile) throw new Error('Phase 1 결과 없음 (proposalContentFile 없음)');
+    if (!phase1.proposalContentFile) {
+      // LLM이 응답은 했지만 제안서 섹션을 만들지 않은 경우 = 역량 불일치 등으로
+      // 작성을 의도적으로 거부한 것. 재시도해도 결과가 같으므로 seen에 넣어
+      // 매시간 재시도→실패 알림 반복(스팸)을 끊고, 사유를 정보성 알림으로 보낸다.
+      if (phase1.llmResponseFile && fs.existsSync(phase1.llmResponseFile)) {
+        const reason = fs.readFileSync(phase1.llmResponseFile, 'utf-8').trim();
+        seenData.projects.push(projectId);
+        saveSeen(seenData);
+        console.log(`⏭️  ${projectId} 지원 안 함 (역량 불일치 판단) — seen 처리, 재시도 안 함`);
+        await sendSlack([
+          `⏭️ [크몽] 지원 안 함 (역량 불일치) | 프로젝트 ${projectId}`,
+          `📌 ${phase1.title}`,
+          `🔗 https://kmong.com/custom-project/requests/${projectId}`,
+          ``,
+          `사유 요약: ${reason.slice(0, 300)}${reason.length > 300 ? '…' : ''}`,
+          `(회사 포트폴리오와 무관한 분야로 판단되어 허위 제안 없이 스킵 — 재시도하지 않음)`
+        ].join('\n'));
+        return;
+      }
+      throw new Error('Phase 1 결과 없음 (proposalContentFile 없음)');
+    }
 
     const prototypeUrl = runPhase2(phase1.prototypePromptFile, phase1.proposalContentFile);
     phase1.prototypeUrl = prototypeUrl;
