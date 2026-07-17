@@ -229,11 +229,43 @@ async function findByText(page, selectors, textPattern) {
     console.log(clickedTaxButton ? '   세금계산서 발행 여부: "가능" 선택' : '   ⚠️ 세금계산서 발행 여부 버튼을 찾지 못함');
 
     // 필수 동의 체크박스 (제안 금액 확인 / 수수료 확인)
-    const checkBillingAmount = await page.$('#checkBillingAmount');
-    const checkCommission = await page.$('#checkCommission');
-    if (checkBillingAmount) await checkBillingAmount.click().catch(() => {});
-    if (checkCommission) await checkCommission.click().catch(() => {});
-    console.log(`   동의 체크박스: ${[checkBillingAmount, checkCommission].filter(Boolean).length}/2개 체크`);
+    // 커스텀 스타일 체크박스라 숨겨진 input을 직접 click()해도 상태가 안 바뀔 수 있다 —
+    // 클릭 후 input.checked를 실제로 검증하고, 안 됐으면 감싸는 label 클릭으로 재시도한다.
+    // (첫 실제 제출 시도에서 이 미검증 클릭 때문에 필수 동의가 안 된 채 제출이 조용히
+    //  거부됐고, 봇은 성공으로 오판했다.)
+    async function ensureChecked(selector) {
+      const setCheckedState = async () => page.evaluate(sel => {
+        const el = document.querySelector(sel);
+        return el ? el.checked : null;
+      }, selector);
+
+      let state = await setCheckedState();
+      if (state === null) return false;
+      if (state === true) return true;
+
+      const el = await page.$(selector);
+      await el.click().catch(() => {});
+      await sleep(300);
+      state = await setCheckedState();
+      if (state === true) return true;
+
+      // 숨겨진 input 클릭이 무시된 경우 — label을 통해 클릭
+      await page.evaluate(sel => {
+        const input = document.querySelector(sel);
+        const label = input && input.closest('label');
+        if (label) label.click();
+      }, selector);
+      await sleep(300);
+      state = await setCheckedState();
+      return state === true;
+    }
+
+    const billingOk = await ensureChecked('#checkBillingAmount');
+    const commissionOk = await ensureChecked('#checkCommission');
+    if (!billingOk || !commissionOk) {
+      throw new Error(`필수 동의 체크 실패 (billing: ${billingOk}, commission: ${commissionOk}) — 제출 불가`);
+    }
+    console.log('   동의 체크박스: 2/2개 체크 확인됨 (checked=true 검증)');
     console.log('✅\n');
 
     console.log('[7/8] 📁 포트폴리오 설명 입력 시도...');
@@ -291,15 +323,32 @@ async function findByText(page, selectors, textPattern) {
       await sleep(3000);
     }
 
-    const finalUrl = page.url();
-    const stillOnApplyForm = /제안하기|proposal/i.test(finalUrl) && finalUrl === projectUrl;
-    if (stillOnApplyForm) {
-      throw new Error(`제출 후에도 URL 변화 없음 — 실제 제출 실패 가능성: ${finalUrl}`);
+    // 성공 검증 1: 제출이 수리되면 모달이 닫힌다 — textarea가 그대로면 검증 실패로
+    // 폼이 열려있는 것 (첫 시도에서 URL만 보고 성공으로 오판한 전례가 있어 강화).
+    const modalStillOpen = (await page.$$('textarea')).length > 0;
+    if (modalStillOpen) {
+      const bodyErr = await page.evaluate(() =>
+        (document.body.innerText.match(/[^\n]*(?:필수|동의|입력|선택)[^\n]*해\s*주세요[^\n]*/g) || []).join(' | ')
+      ).catch(() => '');
+      throw new Error(`제출 후에도 제안 폼이 열려있음 — 실제 제출 실패${bodyErr ? ` (안내: ${bodyErr.slice(0, 200)})` : ''}`);
     }
 
+    // 성공 검증 2: 페이지를 새로 열어 제안 접수 상태 확인 (이미 제안한 프로젝트는
+    // 다시 제안할 수 없으므로 버튼/문구가 바뀐다). 문구를 못 찾아도 모달이 닫혔으면
+    // 성공으로 간주하되 검증 결과를 로그로 남긴다.
+    await page.goto(projectUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await sleep(1500);
+    const proposedState = await page.evaluate(() => {
+      const body = document.body.innerText;
+      return /제안\s*완료|이미\s*제안|제안\s*수정|제안\s*내역/.test(body);
+    }).catch(() => false);
+    console.log(`   재방문 검증: ${proposedState ? '✅ 제안 접수 상태 확인' : '⚠️ 접수 문구 미확인 (모달 닫힘 기준 성공 처리)'}`);
+
+    const finalUrl = page.url();
     console.log(`   ✅ 제출 후 URL: ${finalUrl}`);
     console.log('✅ 제안 제출 완료!\n');
-    console.log(JSON.stringify({ success: true, finalUrl, screenshot: screenshotPath }));
+    console.log(JSON.stringify({ success: true, finalUrl, verified: proposedState, screenshot: screenshotPath }));
 
     if (typeof page !== 'undefined' && page) {
       try { await page.close(); } catch (e) {}
