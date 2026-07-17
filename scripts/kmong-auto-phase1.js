@@ -286,9 +286,13 @@ function saveOutputFiles(sections, projectId, projectTitle) {
         const detail = await getProjectDetail(projectId);
 
         if (detail === null) {
-          seenIds.add(projectId);
-          seenData.projects = Array.from(seenIds);
-          saveSeen(seenData);
+          // 비공개/삭제된 프로젝트 — 재시도해도 결과가 같으므로 seen에 기록
+          // (강제 처리 모드에선 seen 수명주기를 스케줄러가 소유하므로 건드리지 않음)
+          if (!FORCE_PROJECT_ID) {
+            seenIds.add(projectId);
+            seenData.projects = Array.from(seenIds);
+            saveSeen(seenData);
+          }
           continue;
         }
 
@@ -306,9 +310,14 @@ ${detail.description}`.trim();
 
         const files = saveOutputFiles(sections, projectId, detail.title || project.title);
 
-        seenIds.add(projectId);
-        seenData.projects = Array.from(seenIds);
-        saveSeen(seenData);
+        // 강제 처리(스케줄러가 projectId를 지정해 호출) 모드에서는 seen을 저장하지 않는다.
+        // Phase 2/3까지 성공했을 때만 스케줄러가 seen에 추가해야 실패 건이 다음 회차에
+        // 재시도된다 — 여기서 미리 저장하면 "seen 미추가 재시도" 약속이 깨진다.
+        if (!FORCE_PROJECT_ID) {
+          seenIds.add(projectId);
+          seenData.projects = Array.from(seenIds);
+          saveSeen(seenData);
+        }
 
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('✅ Phase 1 완료!');
