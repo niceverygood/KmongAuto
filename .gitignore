@@ -12,3 +12,4 @@ data/kmong-cookies.local.json
 .claude/settings.local.json
 *.log
 .DS_Store
+data/kmong-webhook.local.json
