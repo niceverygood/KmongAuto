@@ -332,15 +332,22 @@ async function main() {
 
     console.log(`🆕 신규: ${newProjects.length}개\n`);
 
+    // 매 실행 요약을 슬랙(#크몽알림)에 남긴다 — 위시켓 봇과 동일한 방식.
+    const nowStr = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     if (newProjects.length === 0) {
       console.log('ℹ️  신규 프로젝트 없음\n');
+      await sendSlack(`🔄 [크몽] 봇 실행 완료 (${nowStr})\n📋 최신 ${projects.length}건 확인 — 신규 없음`);
       return;
     }
+
+    await sendSlack(`▶️ [크몽] 봇 실행 시작 (${nowStr})\n🆕 신규 의뢰 ${newProjects.length}건 발견 — 순차 처리합니다:\n${newProjects.map(p => `- ${p.id} ${p.title}`).join('\n')}`);
 
     for (const project of newProjects) {
       await processProject(project, seenData);
       await new Promise(r => setTimeout(r, 30000));
     }
+
+    await sendSlack(`✅ [크몽] 봇 실행 완료 (${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}) — 신규 ${newProjects.length}건 처리 종료 (건별 결과는 위 메시지 참고)`);
 
   } catch (err) {
     console.error(`❌ 스케줄러 오류: ${err.message}`);
