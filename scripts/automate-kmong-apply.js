@@ -164,6 +164,17 @@ async function findByText(page, selectors, textPattern) {
       throw new Error('로그인 세션 없음 — data/kmong-cookies.local.json 또는 import-session.js로 세션 주입 필요');
     }
 
+    // 이전 회차에서 이미 제안이 접수된 경우 "제안하기" 버튼 대신 "이미 제안을 보냈습니다"
+    // 같은 문구가 뜬다 — 이 경우 재시도가 아니라 이미 성공한 것으로 처리한다 (직전 실행에서
+    // 제출은 됐지만 검증 단계가 실패해 seen 미기록됐다가 재시도되는 케이스를 성공으로 복구).
+    if (/이미\s*제안(을|이)?\s*(보냈|보내|접수|완료|드렸)/.test(bodyText)) {
+      console.log('ℹ️  이미 제안 접수된 프로젝트로 확인 — 재제출 없이 성공 처리\n');
+      console.log(JSON.stringify({ success: true, finalUrl: page.url(), verified: true, alreadyApplied: true }));
+      if (page) { try { await page.close(); } catch (e) {} }
+      if (context) { try { await openclaw.browserClose('openclaw'); } catch (e) {} }
+      process.exit(0);
+    }
+
     console.log('[3/8] 🔍 제안하기 버튼 찾기...');
     const applyButton = await findByText(page, [
       'button:has-text("제안하기")',
