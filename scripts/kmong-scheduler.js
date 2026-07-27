@@ -195,8 +195,14 @@ function runPhase3(projectId, phase1Data) {
 
   const output = result.stdout || '';
   const isDryRun = /"dryRun"\s*:\s*true/.test(output);
+  const permanentSkipMatch = output.match(/"permanentSkip"\s*:\s*true.*"reason"\s*:\s*"([^"]*)"/);
 
-  return { success: result.status === 0 && !isDryRun, dryRun: isDryRun };
+  return {
+    success: result.status === 0 && !isDryRun,
+    dryRun: isDryRun,
+    permanentSkip: !!permanentSkipMatch,
+    permanentSkipReason: permanentSkipMatch ? permanentSkipMatch[1] : '',
+  };
 }
 
 async function processProject(project, seenData) {
@@ -271,7 +277,23 @@ async function processProject(project, seenData) {
       }
     }
 
-    const { success, dryRun } = runPhase3(projectId, phase1);
+    const { success, dryRun, permanentSkip, permanentSkipReason } = runPhase3(projectId, phase1);
+
+    // 엔터프라이즈 등급 등 계정 권한 문제로 상세 페이지 접근이 원천 불가능한 경우 —
+    // 재시도해도 항상 같은 결과이므로 seen 처리하고 재시도 루프를 끊는다.
+    if (permanentSkip) {
+      seenData.projects.push(projectId);
+      saveSeen(seenData);
+      console.log(`⏭️  ${projectId} 지원 불가 (${permanentSkipReason}) — seen 처리, 재시도 안 함`);
+      await sendSlack([
+        `⏭️ [크몽] 지원 불가 | 프로젝트 ${projectId}`,
+        `📌 ${phase1.title}`,
+        `🔗 https://kmong.com/custom-project/requests/${projectId}`,
+        ``,
+        `사유: ${permanentSkipReason}`,
+      ].join('\n'));
+      return;
+    }
 
     // 제출 실패는 seen에 넣지 않는다 — 다음 회차에 재시도 (성공/드라이런만 완료 처리)
     if (!success && !dryRun) {

@@ -158,6 +158,22 @@ async function findByText(page, selectors, textPattern) {
     await sleep(1500);
     console.log('✅\n');
 
+    // 엔터프라이즈(UPMARKET) 등급 프로젝트는 /custom-project/requests/ID가 아니라
+    // /enterprise/requests/ID로 리다이렉트되며, 해당 등급 입찰 권한이 없는 계정은
+    // 다시 홈(회원가입 유도 모달)으로 튕겨나간다 — 재시도해도 항상 같은 결과이므로
+    // "제안하기 버튼 없음" 실패가 아니라 영구 스킵으로 처리한다.
+    const projectIdMatch = projectUrl.match(/\/requests\/(\d+)/);
+    const projectId = projectIdMatch ? projectIdMatch[1] : '';
+    const finalUrlAfterNav = page.url();
+    if (!finalUrlAfterNav.includes(`/requests/${projectId}`) ||
+        !/\/(custom-project|enterprise)\/requests\//.test(finalUrlAfterNav)) {
+      console.log(`   ℹ️  프로젝트 상세 페이지가 아닌 곳으로 이동됨: ${finalUrlAfterNav}`);
+      console.log(JSON.stringify({ success: false, permanentSkip: true, reason: `프로젝트 상세 페이지 접근 불가 (이동된 URL: ${finalUrlAfterNav}) — 엔터프라이즈 등급 등 계정 권한 문제로 추정` }));
+      if (page) { try { await page.close(); } catch (e) {} }
+      if (context) { try { await openclaw.browserClose('openclaw'); } catch (e) {} }
+      process.exit(0);
+    }
+
     // 로그인 상태 확인 — "로그인 후 제안하기" 문구가 보이면 세션 미인증
     const bodyText = await page.evaluate(() => document.body.innerText).catch(() => '');
     if (/로그인\s*후\s*제안하기/.test(bodyText)) {
