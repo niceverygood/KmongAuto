@@ -74,7 +74,10 @@ function runPhase1(projectId) {
     };
   }
 
-  return null;
+  // exit 0인데 PHASE1_RESULT도 없는 경우 — 스크래핑 fetch 실패 등 일시적 오류로
+  // 결과 없이 종료된 것. 여기서 seen 처리하면 네트워크 문제 한 번으로 프로젝트가
+  // 영구히 재평가 대상에서 빠지므로, throw 해서 catch 블록의 "seen 미추가 재시도" 경로를 탄다.
+  throw new Error(`Phase 1 결과 없음 (PHASE1_RESULT 파싱 실패): ${output.slice(-300)}`);
 }
 
 function runPhase2(prototypePromptFile, proposalContentFile) {
