@@ -131,7 +131,14 @@ async function findByText(page, selectors, textPattern) {
     console.log(`   ${projectUrl}`);
     page = await context.newPage();
 
-    if (fs.existsSync(COOKIE_FILE)) {
+    // 영구 프로필이 이미 살아있는 로그인 세션(kmong_session)을 갖고 있으면 파일 주입을 건너뛴다.
+    // 파일이 프로필보다 오래된 경우(예: 만료된 세션 백업) 주입이 오히려 살아있는 세션을
+    // 덮어써 로그인 상태를 깨뜨린다 — 7월 말 엔터프라이즈 페이지 접근 불가 사태의 원인.
+    const profileCookies = await context.cookies('https://kmong.com');
+    const profileHasSession = profileCookies.some(c => c.name === 'kmong_session');
+    if (profileHasSession) {
+      console.log('   프로필에 살아있는 세션 존재 — 쿠키 파일 주입 생략');
+    } else if (fs.existsSync(COOKIE_FILE)) {
       try {
         const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8'));
         const normalized = cookies.map(c => ({
