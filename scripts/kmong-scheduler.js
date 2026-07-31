@@ -27,6 +27,38 @@ function saveSeen(data) {
   fs.writeFileSync(SEEN_FILE, JSON.stringify(data, null, 2));
 }
 
+// 크몽 로그인 세션이 서버 측에서 살아있는지 가벼운 HTTPS 한 번으로 확인한다.
+// 세션이 죽은 상태(리프레시 토큰 무효화)에서 제출 루프를 돌면 프로젝트마다 브라우저를
+// 띄웠다가 전부 "로그인 세션 없음"으로 실패해 매시간 리소스·알림이 낭비된다.
+// 죽은 게 확정되면 제출 단계를 통째로 건너뛰되 seen에는 넣지 않아, 사람이 재로그인하면
+// 다음 회차부터 자동으로 재시도된다. 확인 불가/에러 시엔 false(=진행)로 두어 오탐으로
+// 정상 세션을 막지 않는다.
+async function isSessionDead() {
+  try {
+    const COOKIE_FILE = fs.existsSync(path.join(WORKSPACE, 'data/kmong-cookies.local.json'))
+      ? path.join(WORKSPACE, 'data/kmong-cookies.local.json')
+      : path.join(WORKSPACE, 'data/kmong-cookies.json');
+    if (!fs.existsSync(COOKIE_FILE)) return false;
+    const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8'));
+    const hasRefresh = cookies.some(c => c.name === 'x-kmong-authorization-refreshment');
+    if (!hasRefresh) return false; // 리프레시 토큰 자체가 없으면 판단 보류(진행)
+    const cookieHeader = cookies
+      .filter(c => (c.domain || '').includes('kmong.com'))
+      .map(c => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch('https://kid.kmong.com/api/authentication/v1/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookieHeader },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.status !== 401) return false;
+    const body = await res.text();
+    return /RETRY_LOGOUT|무효화|다시 로그인/.test(body);
+  } catch (e) {
+    console.error(`  [세션체크] 확인 실패(진행): ${e.message}`);
+    return false;
+  }
+}
+
 function runPhase1(projectId) {
   console.log(`[Phase 1] ${projectId} 시작...`);
   const result = spawnSync('node', [
@@ -362,6 +394,21 @@ async function main() {
     if (newProjects.length === 0) {
       console.log('ℹ️  신규 프로젝트 없음\n');
       await sendSlack(`🔄 [크몽] 봇 실행 완료 (${nowStr})\n📋 최신 ${projects.length}건 확인 — 신규 없음`);
+      return;
+    }
+
+    // 세션이 서버 측에서 죽었으면 제출 루프를 통째로 건너뛴다(브라우저 N개 실패 방지).
+    // seen에 넣지 않으므로 사람이 재로그인하면 다음 회차부터 자동 재시도된다.
+    if (await isSessionDead()) {
+      console.log(`⏸️  크몽 로그인 세션 만료(서버 무효화) — 제출 단계 전체 건너뜀. 재로그인 시 자동 재시도.`);
+      await sendSlack([
+        `⏸️ [크몽] 로그인 세션 만료 — 제출 보류 (${nowStr})`,
+        `🆕 대기 중인 신규 의뢰 ${newProjects.length}건이 있으나, 크몽 세션이 서버 측에서 무효화되어 제출할 수 없습니다.`,
+        `👉 브라우저에서 크몽 재로그인 후 쿠키를 갱신하면 다음 회차부터 자동으로 지원이 재개됩니다.`,
+        ``,
+        `대기 목록:`,
+        ...newProjects.map(p => `- ${p.id} ${p.title}`),
+      ].join('\n'));
       return;
     }
 
