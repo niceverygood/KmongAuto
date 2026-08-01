@@ -401,16 +401,37 @@ async function main() {
     // seen에 넣지 않으므로 사람이 재로그인하면 다음 회차부터 자동 재시도된다.
     if (await isSessionDead()) {
       console.log(`⏸️  크몽 로그인 세션 만료(서버 무효화) — 제출 단계 전체 건너뜀. 재로그인 시 자동 재시도.`);
-      await sendSlack([
-        `⏸️ [크몽] 로그인 세션 만료 — 제출 보류 (${nowStr})`,
-        `🆕 대기 중인 신규 의뢰 ${newProjects.length}건이 있으나, 크몽 세션이 서버 측에서 무효화되어 제출할 수 없습니다.`,
-        `👉 브라우저에서 크몽 재로그인 후 쿠키를 갱신하면 다음 회차부터 자동으로 지원이 재개됩니다.`,
-        ``,
-        `대기 목록:`,
-        ...newProjects.map(p => `- ${p.id} ${p.title}`),
-      ].join('\n'));
+      // 슬랙 알림은 매시간 반복되면 팀 채널에 스팸이 되므로 12시간에 최대 1회로 제한한다.
+      // (로컬 로그는 매 회차 남긴다.) 마지막 발송 시각을 상태 파일에 기록해 판단한다.
+      const ALERT_STATE = path.join(WORKSPACE, 'data/kmong-session-alert.json');
+      const THROTTLE_MS = 12 * 60 * 60 * 1000;
+      let lastAlert = 0;
+      try {
+        if (fs.existsSync(ALERT_STATE)) lastAlert = JSON.parse(fs.readFileSync(ALERT_STATE, 'utf-8')).lastAlertMs || 0;
+      } catch (e) {}
+      const nowMs = Date.now();
+      if (nowMs - lastAlert >= THROTTLE_MS) {
+        await sendSlack([
+          `⏸️ [크몽] 로그인 세션 만료 — 제출 보류 (${nowStr})`,
+          `🆕 대기 중인 신규 의뢰 ${newProjects.length}건이 있으나, 크몽 세션이 서버 측에서 무효화되어 제출할 수 없습니다.`,
+          `👉 브라우저에서 크몽 재로그인 후 쿠키를 갱신하면 다음 회차부터 자동으로 지원이 재개됩니다.`,
+          `(이 알림은 세션 복구 전까지 12시간에 1회만 발송됩니다.)`,
+          ``,
+          `대기 목록:`,
+          ...newProjects.map(p => `- ${p.id} ${p.title}`),
+        ].join('\n'));
+        try { fs.writeFileSync(ALERT_STATE, JSON.stringify({ lastAlertMs: nowMs, at: nowStr })); } catch (e) {}
+      } else {
+        console.log(`   (슬랙 알림은 12시간 스로틀로 이번엔 생략 — 마지막 발송 후 ${Math.round((nowMs - lastAlert) / 3600000)}시간)`);
+      }
       return;
     }
+
+    // 세션이 정상 복구됐으면 스로틀 상태를 초기화해, 다음에 만료되면 즉시 알림이 가도록 한다.
+    try {
+      const ALERT_STATE = path.join(WORKSPACE, 'data/kmong-session-alert.json');
+      if (fs.existsSync(ALERT_STATE)) fs.unlinkSync(ALERT_STATE);
+    } catch (e) {}
 
     await sendSlack(`▶️ [크몽] 봇 실행 시작 (${nowStr})\n🆕 신규 의뢰 ${newProjects.length}건 발견 — 순차 처리합니다:\n${newProjects.map(p => `- ${p.id} ${p.title}`).join('\n')}`);
 

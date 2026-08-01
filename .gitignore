@@ -13,3 +13,4 @@ data/kmong-cookies.local.json
 *.log
 .DS_Store
 data/kmong-webhook.local.json
+data/kmong-session-alert.json
