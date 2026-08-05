@@ -24,6 +24,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { browserStart, browserClose } = require('../lib/browser');
@@ -39,8 +40,12 @@ try {
 } catch (_) {}
 
 const PROFILE = 'kmong';
-const KEEPALIVE_LOCK = '/tmp/kmong-keepalive.lock';
-const SCHEDULER_LOCK = '/tmp/kmong-scheduler.lock';
+
+// lock 경로는 OS 임시 디렉터리 기준 (macOS/Linux: /tmp, Windows: %TEMP%).
+// 스케줄러가 다른 위치의 lock 을 쓴다면 KMONG_SCHEDULER_LOCK 으로 지정.
+const TMP = os.tmpdir();
+const KEEPALIVE_LOCK = process.env.KMONG_KEEPALIVE_LOCK || path.join(TMP, 'kmong-keepalive.lock');
+const SCHEDULER_LOCK = process.env.KMONG_SCHEDULER_LOCK || path.join(TMP, 'kmong-scheduler.lock');
 
 const headful = process.argv.includes('--headful');
 const autoLogin = !process.argv.includes('--no-login');

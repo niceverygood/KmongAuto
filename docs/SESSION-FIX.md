@@ -49,9 +49,16 @@ if (me.status !== 200 || !me.json) {
 | 파일 | 역할 |
 |---|---|
 | `lib/kmong-session.js` | 세션 확인 / 자동 재로그인 / 알림 쓰로틀 |
-| `scripts/kmong-session-keepalive.js` | keep-alive ping (launchd 1시간 주기) |
-| `run-keepalive.sh` | launchd 래퍼 (주말·공휴일에도 실행) |
-| `install-keepalive.sh` | launchd 등록/제거 |
+| `scripts/kmong-session-keepalive.js` | keep-alive ping (1시간 주기) |
+| `run-keepalive.ps1` | **Windows** 작업 스케줄러 래퍼 |
+| `install-keepalive.ps1` | **Windows** 작업 스케줄러 등록/제거 |
+| `run-keepalive.sh` | macOS launchd 래퍼 (참고용) |
+| `install-keepalive.sh` | macOS launchd 등록/제거 (참고용) |
+
+> 현재 봇은 **Windows PC** 에서 운영 중이다. `.sh` / `install-scheduler.sh` / `run-scheduler.sh` 는
+> 맥에서 넘어올 때의 잔재이며 Windows 에서는 동작하지 않는다 (`launchd`, `caffeinate`,
+> `~/Library/LaunchAgents` 는 macOS 전용). Windows 에서는 `.ps1` 쪽을 쓰고,
+> `.sh` 로 감싼 진입점 대신 `node scripts\<파일>.js` 를 직접 호출하면 된다.
 
 기존 파일은 **덮어쓰지 않았다.** 아래 4-3 / 4-4 의 두 군데만 직접 반영하면 된다.
 
@@ -80,16 +87,33 @@ if (me.status !== 200 || !me.json) {
 
 ### 4-2. keep-alive 설치
 
-```bash
-cd ~/Projects/KmongAuto
-bash install-keepalive.sh
+**Windows (현재 운영 환경)** — 관리자 권한 불필요:
+
+```powershell
+cd <프로젝트 폴더>
+powershell -ExecutionPolicy Bypass -File install-keepalive.ps1
 ```
 
 즉시 1회 테스트 (창을 띄워 확인):
 
+```powershell
+node scripts\kmong-session-keepalive.js --headful
+```
+
+<details>
+<summary>macOS 인 경우 (참고)</summary>
+
 ```bash
+cd ~/Projects/KmongAuto
+bash install-keepalive.sh
 node scripts/kmong-session-keepalive.js --headful
 ```
+</details>
+
+> **lock 경로:** keep-alive 는 스케줄러와 같은 브라우저 프로필을 쓰므로 겹치면 스스로 건너뛴다.
+> 판단 기준은 OS 임시 폴더(`%TEMP%` / `/tmp`)의 `kmong-scheduler.lock` 이다.
+> 지금 쓰는 스케줄러가 다른 위치에 lock 을 만든다면 환경변수로 알려줄 것:
+> `KMONG_SCHEDULER_LOCK=C:\경로\kmong-scheduler.lock`
 
 ### 4-3. Phase 3 자동 복구 — `scripts/automate-kmong-apply.js`
 
@@ -149,22 +173,25 @@ Phase 2(시제품 생성, 최대 50분)를 끝까지 돌린 뒤 Phase 3 에서�
 
 ### 4-5. 지금 당장 밀린 건 처리
 
-```bash
-node scripts/login-kmong.js       # 브라우저에서 1회 로그인
-bash run-scheduler.sh             # 대기 의뢰 즉시 처리
+Windows (PowerShell) — `.sh` 래퍼 대신 node 를 직접 호출:
+
+```powershell
+cd <프로젝트 폴더>
+node scripts\login-kmong.js       # 브라우저에서 1회 로그인
+node scripts\kmong-scheduler.js   # 대기 의뢰 즉시 처리
 ```
 
 ## 5. 동작 확인
 
-```bash
-# 세션 상태만 확인 (재로그인 없이)
-node scripts/kmong-session-keepalive.js --no-login ; echo "exit=$?"
+```powershell
+# 세션 상태만 확인 (재로그인 시도 없이)
+node scripts\kmong-session-keepalive.js --no-login ; "exit=$LASTEXITCODE"
 
 # keep-alive 로그
-tail -f logs/keepalive-$(date +%Y%m).log
+Get-Content logs\keepalive-$(Get-Date -Format 'yyyyMM').log -Wait -Tail 20
 
-# launchd 등록 확인
-launchctl list | grep kmong
+# 작업 스케줄러 등록/최근 실행 확인
+Get-ScheduledTask -TaskName KmongSessionKeepAlive | Get-ScheduledTaskInfo
 ```
 
 `data/kmong-session-state.json` 에 마지막 확인/재로그인/알림 시각이 기록된다
@@ -177,5 +204,8 @@ launchctl list | grep kmong
   다만 keep-alive 가 만료 자체를 막아주므로 이 경로에 빠질 일 자체가 크게 줄어든다.
 - 로그인 폼은 크몽 UI(모달) 구조에 의존한다. 여러 셀렉터를 순차 시도하도록 작성했지만
   크몽이 로그인 UI를 개편하면 `LOGIN_FORM_NOT_FOUND` 알림과 함께 수동 로그인으로 폴백한다.
-- keep-alive 와 스케줄러는 같은 브라우저 프로필을 쓰므로 동시에 열 수 없다.
-  `/tmp/kmong-scheduler.lock` 을 확인해 겹치면 keep-alive 가 스스로 건너뛴다.
+- keep-alive 와 스케줄러는 같은 브라우저 프로필(`.browser-profiles/kmong`)을 쓰므로 동시에 열 수 없다.
+  OS 임시 폴더(`%TEMP%`)의 `kmong-scheduler.lock` 을 확인해 겹치면 keep-alive 가 스스로 건너뛴다.
+  현재 스케줄러가 다른 경로에 lock 을 만든다면 `KMONG_SCHEDULER_LOCK` 환경변수로 지정해야 한다.
+- Windows 작업 스케줄러 작업은 **해당 사용자로 로그온 중일 때만** 실행된다.
+  PC 가 꺼져 있던 동안의 회차는 `-StartWhenAvailable` 로 부팅 후 1회 보충 실행된다.
