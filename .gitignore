@@ -6,9 +6,16 @@ memory/
 proposals/
 .browser-profiles/
 .auth-storage*.json
+
+# 시크릿 — 이 저장소는 public 이므로 절대 커밋 금지
+config/secrets.json
+.env
+.env.*
+
 data/slack-outbox.jsonl
 data/session-export.json
 data/kmong-cookies.local.json
+data/kmong-session-state.json
 .claude/settings.local.json
 *.log
 .DS_Store
