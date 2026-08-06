@@ -181,6 +181,41 @@ node scripts\login-kmong.js       # 브라우저에서 1회 로그인
 node scripts\kmong-scheduler.js   # 대기 의뢰 즉시 처리
 ```
 
+## 4-6. 자동지원이 안 될 때 — 진단기 먼저 돌리기
+
+세션 만료는 자동지원이 멈추는 **여러 원인 중 하나**일 뿐이다.
+`scripts/kmong-doctor.js` 가 파이프라인이 실제로 끊기는 지점을 찾아 결론을 찍어준다.
+
+```powershell
+node scripts\kmong-doctor.js                  # 전체 진단
+node scripts\kmong-doctor.js --no-browser     # 세션 검사 생략 (빠름)
+node scripts\kmong-doctor.js --find 키오스크   # 특정 공고가 왜 안 잡혔는지 추적
+```
+
+검사 순서 = 파이프라인 순서라, 처음 빨간 줄이 나오는 지점이 곧 원인이다.
+
+| 단계 | 확인 내용 |
+|---|---|
+| 1 | 설정값 (categoryList / projectTypes / minAmountManwon …) |
+| 2 | **전체 카테고리 스캔** — 어떤 카테고리가 존재하고, 현재 설정이 뭘 놓치는지 |
+| 3 | 현재 설정으로 실제 수집되는 공고 수 (0건이면 카테고리 오설정) |
+| 4 | seen 대조 → 신규 건수 |
+| 5 | 필터 시뮬레이션 → 건별 PASS / SKIP(사유) / STOP(금액미달) |
+| 6 | 봇 프로필의 크몽 로그인 세션 생존 여부 |
+
+`--find` 는 특정 공고 하나를 골라 "카테고리에서 탈락 / 필터에서 탈락 / 이미 seen / 세션 문제"
+중 어디서 걸렸는지 짚어준다.
+
+> **자주 겪는 함정 — 일반 Chrome 로그인은 봇과 무관하다.**
+> 봇은 `.browser-profiles/kmong` 이라는 별도 브라우저 프로필을 쓴다. 쿠키 저장소가 완전히
+> 분리돼 있어, 평소 쓰는 Chrome 에서 크몽에 로그인돼 있어도 봇 세션은 죽은 채 그대로다.
+> 반드시 `node scripts\login-kmong.js` 로 뜨는 **그 창에서** 로그인해야 한다.
+
+> **카테고리 설정.** `categoryList` 는 크몽 대분류 ID 목록이다(`"6"` = IT·프로그래밍).
+> 여기 없는 카테고리의 공고는 API 단계에서 아예 수집되지 않으므로, 필터가 아무리 통과해도
+> 지원 시도조차 일어나지 않는다. 진단기 2단계가 실제 응답에서 ID와 이름을 뽑아
+> `categoryList` 에 넣을 값을 그대로 알려준다.
+
 ## 5. 동작 확인
 
 ```powershell
