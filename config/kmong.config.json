@@ -1,0 +1,9 @@
+{
+  "categoryList": "6",
+  "scrapePages": 1,
+  "projectTypes": ["OUTSOURCING"],
+  "isTaxInvoiceIssuable": true,
+  "maxProposalCount": 999,
+  "minAmountManwon": 100,
+  "delayBetweenProjectsSec": 30
+}

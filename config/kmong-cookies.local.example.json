@@ -1,0 +1,5 @@
+{
+  "_comment": "이 파일을 config/kmong-cookies.local.json 으로 복사한 뒤 실제 값을 채우세요. (실제 파일은 .gitignore 처리됨)",
+  "_how": "크몽 로그인 상태에서 개발자도구 ▸ Application ▸ Cookies ▸ https://kmong.com 에서 kmong_session 값을 복사. 여러 쿠키를 넣으려면 아래 cookieString 에 요청헤더 Cookie 문자열을 통째로 붙여넣어도 됩니다.",
+  "cookieString": "kmong_session=여기에_붙여넣기; XSRF-TOKEN=선택; x-kmong-auth=선택"
+}

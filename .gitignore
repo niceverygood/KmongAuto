@@ -6,9 +6,15 @@ memory/
 proposals/
 .browser-profiles/
 .auth-storage*.json
+
+# 시크릿 / 로컬 전용 (절대 커밋 금지)
+config/secrets.json
+config/kmong-cookies.local.json
+data/kmong-cookies.local.json
+data/kmong-seen.json
 data/slack-outbox.jsonl
 data/session-export.json
-data/kmong-cookies.local.json
 .claude/settings.local.json
+.env
 *.log
 .DS_Store

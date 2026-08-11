@@ -1,0 +1,12 @@
+{
+  "name": "kmong-auto",
+  "version": "1.0.0",
+  "description": "크몽 엔터프라이즈(맞춤 프로젝트) 자동 제안 파이프라인",
+  "main": "index.js",
+  "type": "commonjs",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.998.0",
+    "playwright": "^1.60.0"
+  }
+}
