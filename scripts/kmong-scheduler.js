@@ -36,6 +36,9 @@ const SKIP_KEYWORDS = [
   'IA 설계', '정보구조', '그래픽 디자인', '브랜딩 디자인',
   '로고 디자인', '배너 디자인', '영상 편집', '영상 제작',
   '모션 그래픽', '일러스트', '캐릭터 디자인',
+  // "UI 디자인"은 "UI 디자이너"를 못 잡는다(디자인 vs 디자이너) — 디자이너 채용 공고를
+  // 따로 명시. '디자이너' 단독은 "개발자 및 디자이너 모집" 같은 개발 건까지 걸러내므로 쓰지 않음.
+  'UI 디자이너', 'UX 디자이너', '디자이너 모집', '디자이너 채용',
 ];
 
 // 개발 관련 키워드 (제목 또는 본문 앞부분에 하나라도 있으면 지원)
@@ -59,8 +62,10 @@ function saveSeen(data) {
 }
 
 // 필터: 상주 / UI·UX 전용 / 개발 무관이면 skip
-function shouldSkip(project) {
-  const allowedTypes = CONFIG.projectTypes || ['OUTSOURCING'];
+// options.projectTypes 로 허용 진행방식을 호출부에서 덮어쓸 수 있다
+// (backfill 의 --include-resident 용). 없으면 config → 기본값 순으로 폴백.
+function shouldSkip(project, options = {}) {
+  const allowedTypes = options.projectTypes || CONFIG.projectTypes || ['OUTSOURCING'];
   if (project.projectType && !allowedTypes.includes(project.projectType)) {
     return { skip: true, reason: `진행 방식 제외: ${project.projectType} (상주 등)` };
   }
@@ -221,7 +226,7 @@ async function processProject(project, seenData, options = {}) {
   const requestId = String(project.id);
   if (!requestId) return;
 
-  const { skip, reason } = shouldSkip(project);
+  const { skip, reason } = shouldSkip(project, options);
 
   if (skip) {
     console.log(`⏭️  ${requestId} 스킵: ${reason} (${project.title})`);

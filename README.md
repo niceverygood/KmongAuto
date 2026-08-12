@@ -97,6 +97,31 @@ node scripts/kmong-backfill.js --submit        # 실제 제출 (최대 10건)
 node scripts/kmong-backfill.js --submit --limit 3
 ```
 
+### 지원 대상이 0건으로 나올 때 — 상주(RESIDENT) 확인
+
+기본 설정은 **외주(OUTSOURCING)만** 지원한다. 크몽 IT·프로그래밍 게시판에 상주 공고가
+몰리는 시기에는 세션이 멀쩡해도 **"지원 대상 0건"이 정상 동작**으로 나온다.
+
+backfill 은 이걸 바로 알 수 있게 수집 공고의 **진행방식 분포**와 **제외 사유 집계**를 찍어준다.
+
+```
+   진행방식 분포: 상주 17건, 외주 3건
+⚙️  허용 진행방식: 외주
+🆕 미지원 공고: 20개  →  ✅ 지원 대상: 2개, ⏭️  필터 제외: 18개
+── 제외 사유 ──
+   17건: 진행 방식 제외: RESIDENT (상주 등)
+```
+
+상주까지 지원하려면:
+
+```bash
+node scripts/kmong-backfill.js --pages 5 --include-resident            # 미리보기
+node scripts/kmong-backfill.js --submit --include-resident --no-prototype
+# 상시 적용하려면 config/kmong.config.json 의 projectTypes 에 "RESIDENT" 추가
+```
+
+> 상주는 인력을 상주시키는 형태라 외주 도급과 성격이 다르다. 사업 방향에 맞을 때만 켤 것.
+
 **안전장치** (크몽 "단시간 대량 제안" 제재 방지):
 - 기본은 **dry-run** — 실제 제출 없이 놓친 후보 목록만 출력(`temp/kmong-backfill-candidates.json` 저장)
 - `--submit` 를 줘야 실제 제출. 그때도 스케줄러와 **동일한 필터/seen 규칙**과 프로젝트 간 대기(30초) 적용

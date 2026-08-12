@@ -50,7 +50,7 @@ function loadConfig() {
 const CONFIG = loadConfig();
 
 function parseArgs(argv) {
-  const args = { pages: 3, submit: false, limit: 10, noPrototype: false, portfolio: '' };
+  const args = { pages: 3, submit: false, limit: 10, noPrototype: false, portfolio: '', includeResident: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--submit') args.submit = true;
@@ -58,6 +58,7 @@ function parseArgs(argv) {
     else if (a === '--limit') args.limit = Number(argv[++i]) || args.limit;
     else if (a === '--no-prototype') args.noPrototype = true;
     else if (a === '--portfolio') args.portfolio = argv[++i] || '';
+    else if (a === '--include-resident') args.includeResident = true;
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -102,7 +103,8 @@ async function scrapePages(pages, categoryList) {
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log('Usage: node scripts/kmong-backfill.js [--pages N] [--submit] [--limit N] [--no-prototype] [--portfolio URL]');
+    console.log('Usage: node scripts/kmong-backfill.js [--pages N] [--submit] [--limit N] [--no-prototype] [--portfolio URL] [--include-resident]');
+    console.log('  --include-resident : 상주(RESIDENT) 공고도 지원 대상에 포함 (기본은 외주만)');
     process.exit(0);
   }
 
@@ -115,6 +117,19 @@ async function main() {
   const projects = await scrapePages(args.pages, categoryList);
   console.log(`   총 ${projects.length}개 공고 확인\n`);
 
+  // 수집 공고의 진행방식 분포 — 상주만 잔뜩 올라온 시기엔 "지원 대상 0건"이 정상 동작이다.
+  // 그 사실을 로그로 바로 보여줘서 세션 문제로 오해하지 않게 한다.
+  const typeCount = projects.reduce((acc, p) => {
+    const k = p.projectType || '(미상)';
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+  console.log(`   진행방식 분포: ${Object.entries(typeCount).map(([k, v]) => `${k === 'RESIDENT' ? '상주' : k === 'OUTSOURCING' ? '외주' : k} ${v}건`).join(', ')}\n`);
+
+  // 허용 진행방식 — --include-resident 면 상주까지 포함
+  const filterOpts = args.includeResident ? { projectTypes: ['OUTSOURCING', 'RESIDENT'] } : {};
+  console.log(`⚙️  허용 진행방식: ${(filterOpts.projectTypes || CONFIG.projectTypes || ['OUTSOURCING']).map(t => t === 'RESIDENT' ? '상주' : '외주').join(' + ')}\n`);
+
   const seenData = loadSeen();
   const seenIds = new Set((seenData.projects || []).map(String));
 
@@ -123,12 +138,25 @@ async function main() {
   const eligible = [];
   const skipped = [];
   for (const p of notSeen) {
-    const { skip, reason } = shouldSkip(p);
+    const { skip, reason } = shouldSkip(p, filterOpts);
     if (skip) skipped.push({ p, reason });
     else eligible.push(p);
   }
 
   console.log(`🆕 미지원 공고: ${notSeen.length}개  →  ✅ 지원 대상: ${eligible.length}개, ⏭️  필터 제외: ${skipped.length}개\n`);
+
+  // 제외 사유별 집계 — 어디서 다 걸러졌는지 한눈에
+  if (skipped.length) {
+    const byReason = skipped.reduce((acc, s) => {
+      const key = s.reason.replace(/"[^"]*"/, '...').replace(/\d+/g, 'N');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    console.log('── 제외 사유 ──');
+    Object.entries(byReason).sort((a, b) => b[1] - a[1])
+      .forEach(([reason, n]) => console.log(`   ${n}건: ${reason}`));
+    console.log('');
+  }
 
   if (eligible.length) {
     console.log('── 지원 대상 (놓친 프로젝트) ──');
@@ -167,7 +195,7 @@ async function main() {
   const delaySec = Number(CONFIG.delayBetweenProjectsSec) || 30;
 
   // 제출 옵션 — 플래그가 있으면 그 값, 없으면 processProject 가 config 로 폴백
-  const submitOpts = {};
+  const submitOpts = { ...filterOpts };
   if (args.noPrototype) submitOpts.skipPrototype = true;
   if (args.portfolio) submitOpts.portfolioUrl = args.portfolio;
   const protoMode = (args.noPrototype || CONFIG.skipPrototype === true)
