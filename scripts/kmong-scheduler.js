@@ -213,7 +213,11 @@ function runPhase3(requestId, phase1Data, designUrl) {
   };
 }
 
-async function processProject(project, seenData) {
+async function processProject(project, seenData, options = {}) {
+  // 시제품(Phase 2) 생성 여부. options 우선, 없으면 config 값.
+  const skipPrototype = options.skipPrototype ?? (CONFIG.skipPrototype === true);
+  const portfolioUrl = options.portfolioUrl ?? (CONFIG.portfolioUrl || '');
+
   const requestId = String(project.id);
   if (!requestId) return;
 
@@ -233,8 +237,28 @@ async function processProject(project, seenData) {
     const phase1 = runPhase1(project);
     if (!phase1.proposalContentFile) throw new Error('Phase 1 결과 없음 (proposalContentFile 없음)');
 
-    // Phase 2
-    const designUrl = runPhase2(phase1.designPromptFile, phase1.proposalContentFile);
+    // Phase 2 — 시제품 생성. skipPrototype 이면 건너뛰고 제안서의 {{FIGMA_URL}} 를
+    // 포트폴리오 URL 로 치환(없으면 시제품 라인 제거). claude.ai UI 자동화 의존성이
+    // 사라져 제출 성공률이 크게 올라간다 (대신 맞춤 시제품 첨부는 생략됨).
+    let designUrl;
+    if (skipPrototype) {
+      console.log('[Phase 2] 시제품 생성 건너뜀 (no-prototype 모드)');
+      let content = fs.readFileSync(phase1.proposalContentFile, 'utf-8');
+      if (portfolioUrl) {
+        content = content.replace(/\{\{FIGMA_URL\}\}/g, portfolioUrl);
+        designUrl = portfolioUrl;
+      } else {
+        content = content
+          .split('\n')
+          .filter(l => !l.includes('{{FIGMA_URL}}'))
+          .join('\n')
+          .replace(/\n{3,}/g, '\n\n');
+        designUrl = '';
+      }
+      fs.writeFileSync(phase1.proposalContentFile, content);
+    } else {
+      designUrl = runPhase2(phase1.designPromptFile, phase1.proposalContentFile);
+    }
 
     // Phase 3 진입 전: 미치환 변수 검사
     if (phase1.proposalContentFile && fs.existsSync(phase1.proposalContentFile)) {

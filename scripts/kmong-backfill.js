@@ -21,9 +21,15 @@
  *   node scripts/kmong-backfill.js --pages 5       # 5페이지까지 훑기
  *   node scripts/kmong-backfill.js --submit        # 실제 제출 (최대 10건)
  *   node scripts/kmong-backfill.js --submit --limit 3
+ *   node scripts/kmong-backfill.js --submit --no-prototype                 # 시제품 생성 건너뜀(가장 안정적)
+ *   node scripts/kmong-backfill.js --submit --no-prototype --portfolio "https://내포트폴리오"
  *
- * 실제 제출(--submit)은 세션(kmong-login-cookie.js) + claude CLI + claude.ai +
- * R2 설정이 갖춰진 환경(보통 로컬 맥)에서만 동작한다. dry-run 은 공개 API 만 쓴다.
+ * --no-prototype: 잘 깨지는 Phase 2(claude.ai 시제품 자동생성)를 건너뛰고 제안서만으로
+ *   제출한다. claude.ai UI 의존성이 사라져 성공률이 높다. --portfolio 를 주면 제안서
+ *   맨 위 "시제품 미리보기" 링크가 그 URL 로 채워지고, 없으면 그 줄은 제거된다.
+ *
+ * 기본 제출(--submit)은 세션(kmong-login-cookie.js) + claude CLI (+ 시제품 모드면
+ * claude.ai + R2)가 갖춰진 환경(보통 로컬 맥)에서만 동작한다. dry-run 은 공개 API 만 쓴다.
  */
 
 const fs = require('fs');
@@ -44,12 +50,14 @@ function loadConfig() {
 const CONFIG = loadConfig();
 
 function parseArgs(argv) {
-  const args = { pages: 3, submit: false, limit: 10 };
+  const args = { pages: 3, submit: false, limit: 10, noPrototype: false, portfolio: '' };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--submit') args.submit = true;
     else if (a === '--pages') args.pages = Number(argv[++i]) || args.pages;
     else if (a === '--limit') args.limit = Number(argv[++i]) || args.limit;
+    else if (a === '--no-prototype') args.noPrototype = true;
+    else if (a === '--portfolio') args.portfolio = argv[++i] || '';
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -94,7 +102,7 @@ async function scrapePages(pages, categoryList) {
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log('Usage: node scripts/kmong-backfill.js [--pages N] [--submit] [--limit N]');
+    console.log('Usage: node scripts/kmong-backfill.js [--pages N] [--submit] [--limit N] [--no-prototype] [--portfolio URL]');
     process.exit(0);
   }
 
@@ -144,7 +152,8 @@ async function main() {
 
   if (!args.submit) {
     console.log('👉 실제 지원하려면: node scripts/kmong-backfill.js --submit  (한 번에 최대 --limit 건)');
-    console.log('   ⚠️ 제출 전 반드시 세션 복구: node scripts/kmong-login-cookie.js');
+    console.log('   가장 안정적: node scripts/kmong-backfill.js --submit --no-prototype  (시제품 생성 건너뜀)');
+    console.log('   ⚠️ 제출 전 반드시 세션 복구: node scripts/kmong-login-cookie.js "<kmong_session>"');
     process.exit(0);
   }
 
@@ -156,7 +165,17 @@ async function main() {
 
   const batch = eligible.slice(0, args.limit);
   const delaySec = Number(CONFIG.delayBetweenProjectsSec) || 30;
-  console.log(`🚀 제출 시작: ${batch.length}건 (전체 ${eligible.length}건 중 --limit ${args.limit}), 간격 ${delaySec}초\n`);
+
+  // 제출 옵션 — 플래그가 있으면 그 값, 없으면 processProject 가 config 로 폴백
+  const submitOpts = {};
+  if (args.noPrototype) submitOpts.skipPrototype = true;
+  if (args.portfolio) submitOpts.portfolioUrl = args.portfolio;
+  const protoMode = (args.noPrototype || CONFIG.skipPrototype === true)
+    ? `OFF (제안서만${(args.portfolio || CONFIG.portfolioUrl) ? ' + 포트폴리오 링크' : ''})`
+    : 'ON (claude.ai 시제품 자동생성)';
+
+  console.log(`🚀 제출 시작: ${batch.length}건 (전체 ${eligible.length}건 중 --limit ${args.limit}), 간격 ${delaySec}초`);
+  console.log(`   시제품(Phase 2): ${protoMode}\n`);
   if (eligible.length > batch.length) {
     console.log(`ℹ️  ${eligible.length - batch.length}건은 이번 회차 제외 — 나중에 다시 실행하거나 --limit 을 높이세요.\n`);
   }
@@ -165,7 +184,7 @@ async function main() {
     const project = batch[i];
     console.log(`\n[${i + 1}/${batch.length}] 처리 중: [${project.id}] ${project.title}`);
     // 스케줄러와 동일한 seen/실패 규칙으로 1건 처리 (Phase 1~3)
-    await processProject(project, seenData);
+    await processProject(project, seenData, submitOpts);
     if (i < batch.length - 1) {
       console.log(`⏳ ${delaySec}초 대기...`);
       await new Promise(r => setTimeout(r, delaySec * 1000));

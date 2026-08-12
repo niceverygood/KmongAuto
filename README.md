@@ -33,7 +33,13 @@ node scripts/kmong-backfill.js --pages 5
 
 # 3) 실제 지원 (한 회차 최대 10건, 프로젝트 간 30초 대기)
 node scripts/kmong-backfill.js --submit --limit 10
+
+# 3-안정판) 가장 확실하게 — 잘 깨지는 시제품 자동생성(Phase 2)을 건너뜀
+node scripts/kmong-backfill.js --submit --no-prototype --portfolio "https://내포트폴리오주소"
 ```
+
+> **처음엔 `--submit --limit 1` 로 딱 1건만** 넣어보고 실제로 제출되는지 확인한 뒤 건수를 늘리는 걸 권합니다.
+> 로그에 어느 Phase에서 막히는지 그대로 찍힙니다.
 
 > ⚠️ `kmong_session` 은 **로그인 세션 토큰(민감정보)**이다. 채팅·이슈·커밋 등에 남기지 말 것.
 > 세션 복구용 로컬 파일 경로(`config/kmong-cookies.local.json` 등)는 `.gitignore` 에 등록되어 있다.
@@ -97,6 +103,25 @@ node scripts/kmong-backfill.js --submit --limit 3
 - `--limit`(기본 10)로 1회 제출 건수 상한 → 나눠서 실행 유도
 - 성공/필터스킵 → seen 추가(재지원 방지), 실패 → seen 미추가(다음에 재시도)
 
+### 시제품 없이 안정적으로 제출 (`--no-prototype`)
+
+자동제출 체인에서 가장 잘 깨지는 부분은 **Phase 2(claude.ai/design 시제품 자동생성)**다.
+claude.ai UI에 의존하는 800줄짜리 브라우저 자동화라 UI가 바뀌면 멈추고, 멈추면 제출도 안 된다.
+
+`--no-prototype` 는 이 Phase 2를 통째로 건너뛰고 **제안서 텍스트만으로 제출**한다.
+claude CLI(제안서 생성)와 크몽 세션만 있으면 되므로 성공률이 훨씬 높다.
+
+```bash
+node scripts/kmong-backfill.js --submit --no-prototype --portfolio "https://내포트폴리오"
+# 또는 config 로 상시 적용: kmong.config.json 에 "skipPrototype": true, "portfolioUrl": "https://..."
+```
+
+- `--portfolio`(또는 config `portfolioUrl`)를 주면 제안서 맨 위 "서비스 시제품 미리보기: …" 링크가
+  그 URL로 채워진다. **안 주면 그 줄은 제거된다** (단, [마무리] 문단의 "시제품 확인" 문구가 살짝
+  어색해질 수 있으니 포트폴리오 URL 지정을 권장).
+- 대신 프로젝트별 **맞춤 시제품 첨부는 생략**된다. 시제품이 수주 경쟁력에 중요하면 기본(시제품 ON)을 쓰되,
+  claude.ai UI에서 Phase 2가 실제로 도는지 먼저 `--submit --limit 1` 로 확인할 것.
+
 ## seen 관리
 
 - `data/kmong-seen.json`(gitignored) 에 처리 완료한 request ID 저장
@@ -141,6 +166,8 @@ bash install-scheduler.sh
 | `maxProposalCount` | `999` | 기존 제안 수가 이보다 많으면 스킵 |
 | `minAmountManwon` | `100` | 안전장치: 이 금액(만원) 미만 제안은 제출 중단 |
 | `delayBetweenProjectsSec` | `30` | 프로젝트 간 대기 |
+| `skipPrototype` | `false` | `true` 면 Phase 2(시제품 생성) 항상 건너뜀 (제안서만 제출, 안정성↑) |
+| `portfolioUrl` | `""` | 시제품 대신 제안서에 넣을 포트폴리오 링크 (skipPrototype 시 사용) |
 
 ## 알려진 이슈 및 대응
 

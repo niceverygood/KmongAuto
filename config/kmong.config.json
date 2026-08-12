@@ -5,5 +5,7 @@
   "isTaxInvoiceIssuable": true,
   "maxProposalCount": 999,
   "minAmountManwon": 100,
-  "delayBetweenProjectsSec": 30
+  "delayBetweenProjectsSec": 30,
+  "skipPrototype": false,
+  "portfolioUrl": ""
 }
