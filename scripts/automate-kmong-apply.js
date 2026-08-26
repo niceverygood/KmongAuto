@@ -175,7 +175,16 @@ async function findByText(page, selectors, textPattern) {
     if (!finalUrlAfterNav.includes(`/requests/${projectId}`) ||
         !/\/(custom-project|enterprise)\/requests\//.test(finalUrlAfterNav)) {
       console.log(`   ℹ️  프로젝트 상세 페이지가 아닌 곳으로 이동됨: ${finalUrlAfterNav}`);
-      console.log(JSON.stringify({ success: false, permanentSkip: true, reason: `프로젝트 상세 페이지 접근 불가 (이동된 URL: ${finalUrlAfterNav}) — 엔터프라이즈 등급 등 계정 권한 문제로 추정` }));
+      // 단, 로그인 세션이 죽었을 때도 똑같이 튕겨나간다 — 이 경우 /auth-refreshing 이나
+      // open=login_modal 로 리다이렉트된다. 권한 문제와 달리 재로그인하면 지원할 수 있으므로
+      // 영구 스킵으로 처리하면 안 된다(seen 에 박혀 다시는 시도하지 않게 됨).
+      const isSessionRedirect = /auth-refreshing|open=login_modal|users\/login/.test(
+        decodeURIComponent(finalUrlAfterNav)
+      );
+      const reason = isSessionRedirect
+        ? `로그인 세션 만료로 상세 페이지 접근 불가 — 세션 복구 후 재시도 필요`
+        : `프로젝트 상세 페이지 접근 불가 (이동된 URL: ${finalUrlAfterNav}) — 엔터프라이즈 등급 등 계정 권한 문제로 추정`;
+      console.log(JSON.stringify({ success: false, permanentSkip: !isSessionRedirect, reason }));
       if (page) { try { await page.close(); } catch (e) {} }
       if (context) { try { await openclaw.browserClose('openclaw'); } catch (e) {} }
       process.exit(0);
