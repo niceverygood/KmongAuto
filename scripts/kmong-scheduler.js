@@ -231,12 +231,19 @@ function runPhase3(projectId, phase1Data) {
   const output = result.stdout || '';
   const isDryRun = /"dryRun"\s*:\s*true/.test(output);
   const permanentSkipMatch = output.match(/"permanentSkip"\s*:\s*true.*"reason"\s*:\s*"([^"]*)"/);
+  // phase3는 실패를 알릴 때도 결과 JSON만 찍고 exit 0으로 끝난다. 종료 코드만 보면
+  // "success": false 인 실패가 성공으로 둔갑하므로 출력 자체를 신뢰해야 한다.
+  const reportedFailure = /"success"\s*:\s*false/.test(output);
+  const failureReason = reportedFailure
+    ? (output.match(/"success"\s*:\s*false[^}]*"reason"\s*:\s*"([^"]*)"/) || [])[1] || ''
+    : '';
 
   return {
-    success: result.status === 0 && !isDryRun,
+    success: result.status === 0 && !isDryRun && !reportedFailure,
     dryRun: isDryRun,
     permanentSkip: !!permanentSkipMatch,
     permanentSkipReason: permanentSkipMatch ? permanentSkipMatch[1] : '',
+    failureReason,
   };
 }
 
@@ -312,7 +319,7 @@ async function processProject(project, seenData) {
       }
     }
 
-    const { success, dryRun, permanentSkip, permanentSkipReason } = runPhase3(projectId, phase1);
+    const { success, dryRun, permanentSkip, permanentSkipReason, failureReason } = runPhase3(projectId, phase1);
 
     // 엔터프라이즈 등급 등 계정 권한 문제로 상세 페이지 접근이 원천 불가능한 경우 —
     // 재시도해도 항상 같은 결과이므로 seen 처리하고 재시도 루프를 끊는다.
@@ -332,7 +339,7 @@ async function processProject(project, seenData) {
 
     // 제출 실패는 seen에 넣지 않는다 — 다음 회차에 재시도 (성공/드라이런만 완료 처리)
     if (!success && !dryRun) {
-      throw new Error('Phase 3 제출 실패 (phase3 로그 확인)');
+      throw new Error(`Phase 3 제출 실패${failureReason ? `: ${failureReason}` : ''} (phase3 로그 확인)`);
     }
 
     seenData.projects.push(projectId);
