@@ -14,3 +14,6 @@ data/kmong-cookies.local.json
 .DS_Store
 data/kmong-webhook.local.json
 data/kmong-session-alert.json
+
+# R2 자격증명 (로컬 발급 파일)
+data/r2-credentials.local.txt
