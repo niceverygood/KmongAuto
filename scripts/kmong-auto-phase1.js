@@ -204,17 +204,23 @@ function parseLLMResponse(llmText) {
     portfolio: '',   // 3. 포트폴리오 설명
   };
 
+  // 헤딩 레벨은 LLM이 매번 다르게 찍는다(# / ## / ###). 레벨을 고정해서 매칭하면
+  // 응답이 멀쩡해도 전 섹션이 빈 값이 되고, 호출부는 그걸 "제안서 작성 거부"로
+  // 오해해 멀쩡한 공고를 영구 스킵해버린다. 그래서 레벨은 세지 않는다.
+  const HEADINGS = [
+    ['prototype', /^#{1,4}\s*1\.\s*시제품/],
+    ['proposal', /^#{1,4}\s*2\.\s*제안\s*내용/],
+    ['portfolio', /^#{1,4}\s*3\.\s*포트폴리오/],
+  ];
+
   const lines = llmText.split('\n');
   let currentSection = null;
 
   for (const line of lines) {
-    if (line.match(/^##\s*1\.\s*시제품/)) {
-      currentSection = 'prototype';
-    } else if (line.match(/^##\s*2\.\s*제안\s*내용/)) {
-      currentSection = 'proposal';
-    } else if (line.match(/^##\s*3\.\s*포트폴리오/)) {
-      currentSection = 'portfolio';
-    } else if (currentSection && !line.startsWith('##')) {
+    const hit = HEADINGS.find(([, re]) => re.test(line));
+    if (hit) {
+      currentSection = hit[0];
+    } else if (currentSection && !/^#{1,4}\s/.test(line)) {
       sections[currentSection] += line + '\n';
     }
   }

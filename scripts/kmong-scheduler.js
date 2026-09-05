@@ -265,6 +265,14 @@ async function processProject(project, seenData) {
       // 매시간 재시도→실패 알림 반복(스팸)을 끊고, 사유를 정보성 알림으로 보낸다.
       if (phase1.llmResponseFile && fs.existsSync(phase1.llmResponseFile)) {
         const reason = fs.readFileSync(phase1.llmResponseFile, 'utf-8').trim();
+
+        // 다만 응답 안에 "2. 제안 내용" 섹션이 실제로 들어있다면 거부한 게 아니라
+        // 파싱이 놓친 것이다. 이걸 거부로 처리하면 멀쩡한 공고가 영구 스킵된다
+        // (226919 사례). 파싱 문제는 재시도 가능한 실패로 올린다.
+        if (/^#{1,4}\s*2\.\s*제안\s*내용/m.test(reason)) {
+          throw new Error('Phase 1 제안서 파싱 실패 — LLM 응답에는 제안 내용 섹션이 있으나 파일로 저장되지 않음');
+        }
+
         seenData.projects.push(projectId);
         saveSeen(seenData);
         console.log(`⏭️  ${projectId} 지원 안 함 (역량 불일치 판단) — seen 처리, 재시도 안 함`);
