@@ -87,13 +87,19 @@ async function checkUrl(url, timeoutMs = 15000) {
       if (kmongNet.reachable) {
         try {
           await page.goto('https://kmong.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await new Promise(r => setTimeout(r, 2500));
-          const linkText = await page.$$eval('a, button', els => els.map(e => e.textContent || '').join(' '));
-          const loggedIn = /마이크몽|로그아웃/.test(linkText);
-          const hasLoginLink = /로그인/.test(linkText) && /회원가입/.test(linkText);
-          const ok = loggedIn || !hasLoginLink;
-          record('크몽 로그인', ok,
-            ok ? '세션 유효' : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)',
+          // 기업(엔터프라이즈) 세션은 kmong.com/ 접속 시 /biz/... 로 클라이언트 사이드 리다이렉트가
+          // 일어난다 — domcontentloaded + 고정 sleep만으론 리다이렉트 도중에 걸려 execution
+          // context가 파괴되는 오류가 잦았다. networkidle까지 기다려 리다이렉트가 끝난 뒤 검사한다.
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+          await new Promise(r => setTimeout(r, 1500));
+          // 기업(비즈) 계정 UI는 "마이크몽"/"로그아웃" 문구가 페이지에 바로 안 보이고
+          // 프로필 드롭다운 안에만 있어 텍스트 매칭이 불안정하다 — 로그인 시 실제로
+          // 세팅되는 localStorage.kmongSessionId 존재 여부로 판단한다 (더 안정적).
+          const kmongSessionId = await page.evaluate(() => localStorage.getItem('kmongSessionId')).catch(() => null);
+          const linkText = await page.$$eval('a, button', els => els.map(e => e.textContent || '').join(' ')).catch(() => '');
+          const loggedIn = !!kmongSessionId || /마이크몽|로그아웃/.test(linkText);
+          record('크몽 로그인', loggedIn,
+            loggedIn ? '세션 유효' : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)',
             { optional: DRY_RUN }); // dry-run 모드에서는 로그인 없어도 preflight 통과
         } catch (e) {
           record('크몽 로그인', false, `확인 실패: ${e.message.split('\n')[0]}`, { optional: DRY_RUN });

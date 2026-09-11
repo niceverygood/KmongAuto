@@ -204,17 +204,23 @@ function parseLLMResponse(llmText) {
     portfolio: '',   // 3. 포트폴리오 설명
   };
 
+  // 헤딩 레벨은 LLM이 매번 다르게 찍는다(# / ## / ###). 레벨을 고정해서 매칭하면
+  // 응답이 멀쩡해도 전 섹션이 빈 값이 되고, 호출부는 그걸 "제안서 작성 거부"로
+  // 오해해 멀쩡한 공고를 영구 스킵해버린다. 그래서 레벨은 세지 않는다.
+  const HEADINGS = [
+    ['prototype', /^#{1,4}\s*1\.\s*시제품/],
+    ['proposal', /^#{1,4}\s*2\.\s*제안\s*내용/],
+    ['portfolio', /^#{1,4}\s*3\.\s*포트폴리오/],
+  ];
+
   const lines = llmText.split('\n');
   let currentSection = null;
 
   for (const line of lines) {
-    if (line.match(/^##\s*1\.\s*시제품/)) {
-      currentSection = 'prototype';
-    } else if (line.match(/^##\s*2\.\s*제안\s*내용/)) {
-      currentSection = 'proposal';
-    } else if (line.match(/^##\s*3\.\s*포트폴리오/)) {
-      currentSection = 'portfolio';
-    } else if (currentSection && !line.startsWith('##')) {
+    const hit = HEADINGS.find(([, re]) => re.test(line));
+    if (hit) {
+      currentSection = hit[0];
+    } else if (currentSection && !/^#{1,4}\s/.test(line)) {
       sections[currentSection] += line + '\n';
     }
   }
@@ -286,9 +292,13 @@ function saveOutputFiles(sections, projectId, projectTitle) {
         const detail = await getProjectDetail(projectId);
 
         if (detail === null) {
-          seenIds.add(projectId);
-          seenData.projects = Array.from(seenIds);
-          saveSeen(seenData);
+          // 비공개/삭제된 프로젝트 — 재시도해도 결과가 같으므로 seen에 기록
+          // (강제 처리 모드에선 seen 수명주기를 스케줄러가 소유하므로 건드리지 않음)
+          if (!FORCE_PROJECT_ID) {
+            seenIds.add(projectId);
+            seenData.projects = Array.from(seenIds);
+            saveSeen(seenData);
+          }
           continue;
         }
 
@@ -306,9 +316,14 @@ ${detail.description}`.trim();
 
         const files = saveOutputFiles(sections, projectId, detail.title || project.title);
 
-        seenIds.add(projectId);
-        seenData.projects = Array.from(seenIds);
-        saveSeen(seenData);
+        // 강제 처리(스케줄러가 projectId를 지정해 호출) 모드에서는 seen을 저장하지 않는다.
+        // Phase 2/3까지 성공했을 때만 스케줄러가 seen에 추가해야 실패 건이 다음 회차에
+        // 재시도된다 — 여기서 미리 저장하면 "seen 미추가 재시도" 약속이 깨진다.
+        if (!FORCE_PROJECT_ID) {
+          seenIds.add(projectId);
+          seenData.projects = Array.from(seenIds);
+          saveSeen(seenData);
+        }
 
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('✅ Phase 1 완료!');
@@ -327,7 +342,10 @@ ${detail.description}`.trim();
           prototypePromptFile: files.prototypePrompt,
           proposalContentFile: files.proposalContent,
           portfolioFile: files.portfolio,
-          metaFile: files.meta
+          metaFile: files.meta,
+          // 제안서 섹션 없이 LLM 응답만 있으면 "역량 불일치 등으로 작성을 거부한 것" —
+          // 스케줄러가 재시도 불가 스킵으로 분류할 수 있도록 응답 경로를 넘긴다.
+          llmResponseFile: llmResponsePath
         }));
 
       } catch (error) {

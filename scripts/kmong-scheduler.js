@@ -3,8 +3,7 @@
 /**
  * 크몽 자동화 스케줄러
  *
- * - 새 의뢰 스크래핑(공개 JSON API) → 필터링 → Phase 1~3 자동 실행
- * - UI/UX 전용, 기획 전용, 상주(RESIDENT) 형태 프로젝트 제외
+ * - 새 의뢰 스크래핑(공개 JSON API) → Phase 1~3 자동 실행 (카테고리 필터 없음, 전 분야 지원)
  * - 완료 시 슬랙 #위시켓-알림 채널(위시켓 봇과 공용 웹훅)에 "[크몽]" 접두사로 결과 전송
  * - 크몽은 댓글 기능이 없으므로 위시켓 봇의 "비밀 댓글" 단계는 없음
  */
@@ -17,25 +16,6 @@ const { WORKSPACE } = require('../lib/workspace');
 const { sendSlack } = require('../lib/slack');
 const SEEN_FILE = path.join(WORKSPACE, 'data/kmong-seen.json');
 
-const SKIP_KEYWORDS = [
-  'UI/UX', 'UI/ UX', 'UX/UI', 'UX 디자인', 'UI 디자인',
-  '디자인 기획', '기획만', '기획 전문', 'UX 기획',
-  '서비스 기획', '기획서 작성', '앱 기획', '웹 기획',
-  '화면설계', '스토리보드', '와이어프레임', '프로토타입 기획',
-  'IA 설계', '정보구조', '그래픽 디자인', '브랜딩 디자인',
-  '로고 디자인', '배너 디자인', '영상 편집', '영상 제작',
-  '모션 그래픽', '일러스트', '캐릭터 디자인',
-  'PMO', '사업관리', // 상주형 관리 인력 의뢰 제외
-];
-
-const INCLUDE_KEYWORDS = [
-  '개발', '구축', '제작', 'API', '앱 개발', '웹 개발',
-  '백엔드', '프론트엔드', 'Flutter', 'React', 'Next.js',
-  'Spring', 'Node', 'Python', 'Java', 'Swift', 'Kotlin',
-  '자동화', '크롤링', 'AI', '머신러닝', '데이터',
-  '플랫폼', '시스템', '솔루션', '서버',
-];
-
 function loadSeen() {
   if (!fs.existsSync(SEEN_FILE)) return { projects: [] };
   return JSON.parse(fs.readFileSync(SEEN_FILE, 'utf-8'));
@@ -47,14 +27,36 @@ function saveSeen(data) {
   fs.writeFileSync(SEEN_FILE, JSON.stringify(data, null, 2));
 }
 
-function shouldSkip(title) {
-  const t = title || '';
-  for (const kw of SKIP_KEYWORDS) {
-    if (t.includes(kw)) return { skip: true, reason: `스킵 키워드: "${kw}"` };
+// 크몽 로그인 세션이 서버 측에서 살아있는지 가벼운 HTTPS 한 번으로 확인한다.
+// 세션이 죽은 상태(리프레시 토큰 무효화)에서 제출 루프를 돌면 프로젝트마다 브라우저를
+// 띄웠다가 전부 "로그인 세션 없음"으로 실패해 매시간 리소스·알림이 낭비된다.
+// 죽은 게 확정되면 제출 단계를 통째로 건너뛰되 seen에는 넣지 않아, 사람이 재로그인하면
+// 다음 회차부터 자동으로 재시도된다. 확인 불가/에러 시엔 false(=진행)로 두어 오탐으로
+// 정상 세션을 막지 않는다.
+async function isSessionDead() {
+  try {
+    const COOKIE_FILE = fs.existsSync(path.join(WORKSPACE, 'data/kmong-cookies.local.json'))
+      ? path.join(WORKSPACE, 'data/kmong-cookies.local.json')
+      : path.join(WORKSPACE, 'data/kmong-cookies.json');
+    if (!fs.existsSync(COOKIE_FILE)) return false;
+    const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8'));
+    const hasRefresh = cookies.some(c => c.name === 'x-kmong-authorization-refreshment');
+    if (!hasRefresh) return false; // 리프레시 토큰 자체가 없으면 판단 보류(진행)
+    const cookieHeader = cookies
+      .filter(c => (c.domain || '').includes('kmong.com'))
+      .map(c => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch('https://kid.kmong.com/api/authentication/v1/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookieHeader },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.status !== 401) return false;
+    const body = await res.text();
+    return /RETRY_LOGOUT|무효화|다시 로그인/.test(body);
+  } catch (e) {
+    console.error(`  [세션체크] 확인 실패(진행): ${e.message}`);
+    return false;
   }
-  const hasDevKeyword = INCLUDE_KEYWORDS.some(kw => t.includes(kw));
-  if (!hasDevKeyword) return { skip: true, reason: '개발 관련 키워드 없음' };
-  return { skip: false };
 }
 
 function runPhase1(projectId) {
@@ -99,15 +101,27 @@ function runPhase1(projectId) {
       proposalContentFile: phase1Data.proposalContentFile,
       prototypePromptFile: phase1Data.prototypePromptFile,
       portfolioFile: phase1Data.portfolioFile,
+      llmResponseFile: phase1Data.llmResponseFile,
       title: phase1Data.projectTitle || projectId
     };
   }
 
-  return null;
+  // exit 0인데 PHASE1_RESULT도 없는 경우 — 스크래핑 fetch 실패 등 일시적 오류로
+  // 결과 없이 종료된 것. 여기서 seen 처리하면 네트워크 문제 한 번으로 프로젝트가
+  // 영구히 재평가 대상에서 빠지므로, throw 해서 catch 블록의 "seen 미추가 재시도" 경로를 탄다.
+  throw new Error(`Phase 1 결과 없음 (PHASE1_RESULT 파싱 실패): ${output.slice(-300)}`);
 }
 
 function runPhase2(prototypePromptFile, proposalContentFile) {
   const mode = process.env.DESIGN_MODE || 'auto';
+
+  // R2 자격증명이 없으면 시제품을 생성해도 업로드(공유 URL 발급)가 불가능하다.
+  // 10분+ 걸리는 생성 자체를 건너뛰고 시제품 없이 제안하는 쪽으로 우아하게 강등한다.
+  if (!process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
+    console.log('[Phase 2] ⚠️  R2 자격증명 미설정 — 시제품 생성 생략, 시제품 없이 제안 진행');
+    return null;
+  }
+
   console.log(`[Phase 2] 시제품 생성 시작 (mode: ${mode})...`);
 
   let result;
@@ -166,9 +180,11 @@ function runPhase2(prototypePromptFile, proposalContentFile) {
   }
 
   if (!prototypeUrl) {
-    console.error(`  ❌ Prototype URL을 찾을 수 없습니다`);
+    // 시제품은 제안의 부가 요소 — 업로드/추출 실패로 지원 자체를 막지 않고
+    // 시제품 없이 제안하는 쪽으로 강등한다.
+    console.error(`  ⚠️  Prototype URL을 찾을 수 없습니다 — 시제품 없이 제안 진행`);
     console.error(`  stdout (last 500): ${output.slice(-500)}`);
-    throw new Error('Prototype URL 추출 실패');
+    return null;
   }
 
   if (proposalContentFile && fs.existsSync(proposalContentFile)) {
@@ -214,21 +230,25 @@ function runPhase3(projectId, phase1Data) {
 
   const output = result.stdout || '';
   const isDryRun = /"dryRun"\s*:\s*true/.test(output);
+  const permanentSkipMatch = output.match(/"permanentSkip"\s*:\s*true.*"reason"\s*:\s*"([^"]*)"/);
+  // phase3는 실패를 알릴 때도 결과 JSON만 찍고 exit 0으로 끝난다. 종료 코드만 보면
+  // "success": false 인 실패가 성공으로 둔갑하므로 출력 자체를 신뢰해야 한다.
+  const reportedFailure = /"success"\s*:\s*false/.test(output);
+  const failureReason = reportedFailure
+    ? (output.match(/"success"\s*:\s*false[^}]*"reason"\s*:\s*"([^"]*)"/) || [])[1] || ''
+    : '';
 
-  return { success: result.status === 0 && !isDryRun, dryRun: isDryRun };
+  return {
+    success: result.status === 0 && !isDryRun && !reportedFailure,
+    dryRun: isDryRun,
+    permanentSkip: !!permanentSkipMatch,
+    permanentSkipReason: permanentSkipMatch ? permanentSkipMatch[1] : '',
+    failureReason,
+  };
 }
 
 async function processProject(project, seenData) {
   const projectId = String(project.id);
-
-  const { skip, reason } = shouldSkip(project.title);
-
-  if (skip) {
-    console.log(`⏭️  ${projectId} 스킵: ${reason} (${project.title})`);
-    seenData.projects.push(projectId);
-    saveSeen(seenData);
-    return;
-  }
 
   console.log(`\n🚀 ${projectId}: ${project.title}`);
 
@@ -239,10 +259,51 @@ async function processProject(project, seenData) {
       saveSeen(seenData);
       return;
     }
-    if (!phase1.proposalContentFile) throw new Error('Phase 1 결과 없음 (proposalContentFile 없음)');
+    if (!phase1.proposalContentFile) {
+      // LLM이 응답은 했지만 제안서 섹션을 만들지 않은 경우 = 역량 불일치 등으로
+      // 작성을 의도적으로 거부한 것. 재시도해도 결과가 같으므로 seen에 넣어
+      // 매시간 재시도→실패 알림 반복(스팸)을 끊고, 사유를 정보성 알림으로 보낸다.
+      if (phase1.llmResponseFile && fs.existsSync(phase1.llmResponseFile)) {
+        const reason = fs.readFileSync(phase1.llmResponseFile, 'utf-8').trim();
+
+        // 다만 응답 안에 "2. 제안 내용" 섹션이 실제로 들어있다면 거부한 게 아니라
+        // 파싱이 놓친 것이다. 이걸 거부로 처리하면 멀쩡한 공고가 영구 스킵된다
+        // (226919 사례). 파싱 문제는 재시도 가능한 실패로 올린다.
+        if (/^#{1,4}\s*2\.\s*제안\s*내용/m.test(reason)) {
+          throw new Error('Phase 1 제안서 파싱 실패 — LLM 응답에는 제안 내용 섹션이 있으나 파일로 저장되지 않음');
+        }
+
+        seenData.projects.push(projectId);
+        saveSeen(seenData);
+        console.log(`⏭️  ${projectId} 지원 안 함 (역량 불일치 판단) — seen 처리, 재시도 안 함`);
+        await sendSlack([
+          `⏭️ [크몽] 지원 안 함 (역량 불일치) | 프로젝트 ${projectId}`,
+          `📌 ${phase1.title}`,
+          `🔗 https://kmong.com/custom-project/requests/${projectId}`,
+          ``,
+          `사유 요약: ${reason.slice(0, 300)}${reason.length > 300 ? '…' : ''}`,
+          `(회사 포트폴리오와 무관한 분야로 판단되어 허위 제안 없이 스킵 — 재시도하지 않음)`
+        ].join('\n'));
+        return;
+      }
+      throw new Error('Phase 1 결과 없음 (proposalContentFile 없음)');
+    }
 
     const prototypeUrl = runPhase2(phase1.prototypePromptFile, phase1.proposalContentFile);
     phase1.prototypeUrl = prototypeUrl;
+
+    // 시제품 없이 진행하는 경우: 제안서에 남은 "시제품 미리보기: {{PROTOTYPE_URL}}" 줄을
+    // 제거해 미치환 변수 검사(수동 제안 경로)에 걸리지 않게 한다.
+    if (!prototypeUrl && phase1.proposalContentFile && fs.existsSync(phase1.proposalContentFile)) {
+      let content = fs.readFileSync(phase1.proposalContentFile, 'utf-8');
+      content = content
+        .split('\n')
+        .filter(line => !line.includes('{{PROTOTYPE_URL}}'))
+        .join('\n')
+        .replace(/^\s*\n+/, '');
+      fs.writeFileSync(phase1.proposalContentFile, content, 'utf-8');
+      console.log('  ℹ️  시제품 없이 제안 — 제안서에서 시제품 링크 줄 제거');
+    }
 
     if (phase1.proposalContentFile && fs.existsSync(phase1.proposalContentFile)) {
       const content = fs.readFileSync(phase1.proposalContentFile, 'utf-8');
@@ -266,7 +327,28 @@ async function processProject(project, seenData) {
       }
     }
 
-    const { success, dryRun } = runPhase3(projectId, phase1);
+    const { success, dryRun, permanentSkip, permanentSkipReason, failureReason } = runPhase3(projectId, phase1);
+
+    // 엔터프라이즈 등급 등 계정 권한 문제로 상세 페이지 접근이 원천 불가능한 경우 —
+    // 재시도해도 항상 같은 결과이므로 seen 처리하고 재시도 루프를 끊는다.
+    if (permanentSkip) {
+      seenData.projects.push(projectId);
+      saveSeen(seenData);
+      console.log(`⏭️  ${projectId} 지원 불가 (${permanentSkipReason}) — seen 처리, 재시도 안 함`);
+      await sendSlack([
+        `⏭️ [크몽] 지원 불가 | 프로젝트 ${projectId}`,
+        `📌 ${phase1.title}`,
+        `🔗 https://kmong.com/custom-project/requests/${projectId}`,
+        ``,
+        `사유: ${permanentSkipReason}`,
+      ].join('\n'));
+      return;
+    }
+
+    // 제출 실패는 seen에 넣지 않는다 — 다음 회차에 재시도 (성공/드라이런만 완료 처리)
+    if (!success && !dryRun) {
+      throw new Error(`Phase 3 제출 실패${failureReason ? `: ${failureReason}` : ''} (phase3 로그 확인)`);
+    }
 
     seenData.projects.push(projectId);
     saveSeen(seenData);
@@ -322,15 +404,58 @@ async function main() {
 
     console.log(`🆕 신규: ${newProjects.length}개\n`);
 
+    // 매 실행 요약을 슬랙(#크몽알림)에 남긴다 — 위시켓 봇과 동일한 방식.
+    const nowStr = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     if (newProjects.length === 0) {
       console.log('ℹ️  신규 프로젝트 없음\n');
+      await sendSlack(`🔄 [크몽] 봇 실행 완료 (${nowStr})\n📋 최신 ${projects.length}건 확인 — 신규 없음`);
       return;
     }
+
+    // 세션이 서버 측에서 죽었으면 제출 루프를 통째로 건너뛴다(브라우저 N개 실패 방지).
+    // seen에 넣지 않으므로 사람이 재로그인하면 다음 회차부터 자동 재시도된다.
+    if (await isSessionDead()) {
+      console.log(`⏸️  크몽 로그인 세션 만료(서버 무효화) — 제출 단계 전체 건너뜀. 재로그인 시 자동 재시도.`);
+      // 슬랙 알림은 매시간 반복되면 팀 채널에 스팸이 되므로 12시간에 최대 1회로 제한한다.
+      // (로컬 로그는 매 회차 남긴다.) 마지막 발송 시각을 상태 파일에 기록해 판단한다.
+      const ALERT_STATE = path.join(WORKSPACE, 'data/kmong-session-alert.json');
+      const THROTTLE_MS = 12 * 60 * 60 * 1000;
+      let lastAlert = 0;
+      try {
+        if (fs.existsSync(ALERT_STATE)) lastAlert = JSON.parse(fs.readFileSync(ALERT_STATE, 'utf-8')).lastAlertMs || 0;
+      } catch (e) {}
+      const nowMs = Date.now();
+      if (nowMs - lastAlert >= THROTTLE_MS) {
+        await sendSlack([
+          `⏸️ [크몽] 로그인 세션 만료 — 제출 보류 (${nowStr})`,
+          `🆕 대기 중인 신규 의뢰 ${newProjects.length}건이 있으나, 크몽 세션이 서버 측에서 무효화되어 제출할 수 없습니다.`,
+          `👉 브라우저에서 크몽 재로그인 후 쿠키를 갱신하면 다음 회차부터 자동으로 지원이 재개됩니다.`,
+          `(이 알림은 세션 복구 전까지 12시간에 1회만 발송됩니다.)`,
+          ``,
+          `대기 목록:`,
+          ...newProjects.map(p => `- ${p.id} ${p.title}`),
+        ].join('\n'));
+        try { fs.writeFileSync(ALERT_STATE, JSON.stringify({ lastAlertMs: nowMs, at: nowStr })); } catch (e) {}
+      } else {
+        console.log(`   (슬랙 알림은 12시간 스로틀로 이번엔 생략 — 마지막 발송 후 ${Math.round((nowMs - lastAlert) / 3600000)}시간)`);
+      }
+      return;
+    }
+
+    // 세션이 정상 복구됐으면 스로틀 상태를 초기화해, 다음에 만료되면 즉시 알림이 가도록 한다.
+    try {
+      const ALERT_STATE = path.join(WORKSPACE, 'data/kmong-session-alert.json');
+      if (fs.existsSync(ALERT_STATE)) fs.unlinkSync(ALERT_STATE);
+    } catch (e) {}
+
+    await sendSlack(`▶️ [크몽] 봇 실행 시작 (${nowStr})\n🆕 신규 의뢰 ${newProjects.length}건 발견 — 순차 처리합니다:\n${newProjects.map(p => `- ${p.id} ${p.title}`).join('\n')}`);
 
     for (const project of newProjects) {
       await processProject(project, seenData);
       await new Promise(r => setTimeout(r, 30000));
     }
+
+    await sendSlack(`✅ [크몽] 봇 실행 완료 (${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}) — 신규 ${newProjects.length}건 처리 종료 (건별 결과는 위 메시지 참고)`);
 
   } catch (err) {
     console.error(`❌ 스케줄러 오류: ${err.message}`);
