@@ -4,16 +4,16 @@
  *
  * 크몽 커스텀 프로젝트 게시판은 공개 JSON API를 제공한다 (로그인 불필요):
  *   GET https://kmong.com/api/custom-project/v1/requests
- *     ?q=&sort=CREATED_AT&category_list=6&sub_category_list=&project_type=&page=1&per_page=30
+ *     ?q=&sort=CREATED_AT&category_list=&sub_category_list=&project_type=&page=1&per_page=30
  *
- * category_list=6 은 "IT·프로그래밍" 대분류다. 브라우저 없이 fetch만으로 목록을 가져올 수 있어
- * 위시켓 스크래퍼보다 훨씬 가벼고 안정적이다.
+ * category_list를 비워두면 전체 대분류(IT·프로그래밍, 디자인, 마케팅, 영상·사진·음향 등)를
+ * 가져온다. 브라우저 없이 fetch만으로 목록을 가져올 수 있어 위시켓 스크래퍼보다 훨씬
+ * 가볍고 안정적이다.
  *
  * stdout에는 JSON 배열만 출력한다 — scheduler/phase1이 stdout 전체를 JSON.parse 하므로
  * 로그는 반드시 stderr로만 남길 것.
  */
 
-const IT_CATEGORY_ID = 6;
 const PER_PAGE = 30;
 const MAX_PAGES = parseInt(process.env.KMONG_SCRAPE_PAGES || '3', 10);
 
@@ -21,7 +21,7 @@ function buildUrl(page) {
   const params = new URLSearchParams({
     q: '',
     sort: 'CREATED_AT',
-    category_list: String(IT_CATEGORY_ID),
+    category_list: '', // 전체 카테고리 — IT 외 디자인/마케팅/영상 등도 포함
     sub_category_list: '',
     project_type: 'OUTSOURCING', // 외주(도급)만 — 상주(RESIDENT)는 제외 (위시켓 봇과 동일 정책)
     page: String(page),
