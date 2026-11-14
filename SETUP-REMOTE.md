@@ -16,7 +16,7 @@
          ├─ Phase 2: automate-claude-design.js claude.ai/design 시제품 생성 → R2 업로드 → 링크
          └─ Phase 3: automate-kmong-apply.js   제안 폼 입력 + (SKIP_SUBMIT=false일 때만) 실제 제출
       4. data/kmong-seen.json 커밋&푸시 (상태 영속화)
-  → 실행 결과를 슬랙 #위시켓-알림 채널에 "[크몽]" 접두사로 공유 (위시켓 봇과 웹훅 공용, 사용자 승인됨)
+  → 실행 결과와 지연 알림은 슬랙 #크몽_알림에만 공유
 ```
 
 크몽은 댓글 기능이 없어 위시켓 봇의 "비밀 댓글 작성" 단계가 없다. 대신 모든 단계의 결과(성공/실패/드라이런)를
@@ -44,12 +44,14 @@
 ### 0. 자격증명 환경변수 설정 (필수)
 
 Slack 웹훅과 R2 액세스 키는 GitHub secret scanning에 걸려 레포에 커밋할 수 없다. 이 세션(또는
-Routine 실행 환경)에 아래 환경변수를 위시켓 봇과 동일한 값으로 설정할 것:
+Routine 실행 환경)에 아래 환경변수를 설정할 것:
 
 | 환경변수 | 용도 |
 |---|---|
-| `SLACK_WEBHOOK_URL` | 위시켓 봇이 쓰는 `#위시켓-알림` 웹훅과 동일 값 |
+| `KMONG_SLACK_BOT_TOKEN` | `#크몽_알림`에 게시할 수 있는 바틀봇 토큰 |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 위시켓 봇이 쓰는 R2 버킷(`wishket`)과 동일 자격증명 |
+
+토큰 대신 Slack 앱에서 `#크몽_알림`에 연결한 전용 웹훅을 `KMONG_SLACK_WEBHOOK_URL` 또는 `data/kmong-webhook.local.json`의 `url`에 설정할 수 있다. 위시켓용 공용 `SLACK_WEBHOOK_URL`은 사용하지 않는다.
 
 미설정 시: Slack 알림은 `data/slack-outbox.jsonl`에 쌓이기만 하고 전송되지 않으며, R2 업로드는
 자격증명 오류로 실패한다(Phase 2가 실패로 처리됨).
@@ -61,7 +63,7 @@ Routine 실행 환경)에 아래 환경변수를 위시켓 봇과 동일한 값�
 | 도메인 | 용도 | 상태 |
 |---|---|---|
 | `kmong.com` | 의뢰 수집(API) + 제안 제출 | 확인 필요 |
-| `hooks.slack.com` | 슬랙 웹훅 알림 | 위시켓 봇에서 이미 허용됐을 가능성 높음 |
+| `slack.com` / `hooks.slack.com` | 바틀봇 API 또는 전용 웹훅 | 선택한 전송 방식에 맞춰 허용 |
 | `claude.ai` | 시제품 생성 | 위시켓 봇에서 이미 허용됨 |
 | `*.r2.cloudflarestorage.com` | 시제품 HTML 업로드 | 위시켓 봇에서 이미 허용됨 |
 
@@ -93,8 +95,9 @@ private 저장소 필수, 이전 완료 후 삭제 권장. **절대 채팅/이�
 
 정기적으로 이 세션으로 발사되는 Routine을 등록해서 사용한다. Claude가 매 회차:
 - `bash run-scheduler.sh` 실행
+- 전용 전송 설정이 없으면 대기 알림을 보존한다. 예약 작업에 Slack 커넥터가 연결되어 있으면 대기 중인 결과만 #크몽_알림으로 보내고, 해당 채널의 전송 확인을 받은 항목만 대기 목록에서 제거한다.
 - preflight 실패(네트워크/세션 미설정) 시: 슬랙 알림 없이 스킵
-- 제안 완료/실패/드라이런 시: 슬랙 #위시켓-알림에 "[크몽]" 접두사로 결과 공유
+- 제안 완료/실패/드라이런 시: 슬랙 #크몽_알림에만 결과 공유. 직접 전송에 성공한 알림은 중복 게시하지 않는다.
 - `data/kmong-seen.json` 커밋&푸시로 중복 지원 방지 상태 유지
 
 중지/재개는 세션에서 "크몽 봇 멈춰줘 / 다시 켜줘"라고 하면 됨.
@@ -110,7 +113,7 @@ node scripts/kmong-auto-phase1.js <프로젝트ID>   # 특정 의뢰 강제 처�
 
 ## 위시켓 봇과 공유하는 것 / 별도인 것
 
-- 슬랙 웹훅: 공유 (동일 웹훅, 메시지 접두사로 구분) — 사용자 승인됨
+- 슬랙: 크몽 자동지원 결과는 #크몽_알림 전용. 위시켓 웹훅 및 위시켓 메시지 스레드를 사용하지 않는다.
 - Cloudflare R2 버킷/자격증명: 공유 (업로드 키 접두사 `designs/kmong-design-*`로 구분) — 사용자 승인됨
 - 로그인 세션(`.browser-profiles/`), seen 상태(`data/kmong-seen.json`), LLM 프롬프트 템플릿: 완전히 별도
   (레포 자체가 분리되어 있어 자동으로 격리됨)

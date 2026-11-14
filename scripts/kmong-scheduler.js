@@ -4,7 +4,7 @@
  * 크몽 자동화 스케줄러
  *
  * - 새 의뢰 스크래핑(공개 JSON API) → Phase 1~3 자동 실행 (카테고리 필터 없음, 전 분야 지원)
- * - 완료 시 슬랙 #위시켓-알림 채널(위시켓 봇과 공용 웹훅)에 "[크몽]" 접두사로 결과 전송
+ * - 완료 시 슬랙 #크몽_알림 채널에 "[크몽]" 접두사로 결과 전송
  * - 크몽은 댓글 기능이 없으므로 위시켓 봇의 "비밀 댓글" 단계는 없음
  */
 
@@ -404,7 +404,7 @@ async function main() {
 
     console.log(`🆕 신규: ${newProjects.length}개\n`);
 
-    // 매 실행 요약을 슬랙(#크몽알림)에 남긴다 — 위시켓 봇과 동일한 방식.
+    // 매 실행 요약을 슬랙(#크몽_알림)에 남긴다 — 위시켓 봇과 동일한 방식.
     const nowStr = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     if (newProjects.length === 0) {
       console.log('ℹ️  신규 프로젝트 없음\n');
