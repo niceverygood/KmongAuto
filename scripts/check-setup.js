@@ -32,6 +32,40 @@ function record(name, ok, detail, { optional = false } = {}) {
   console.log(`${icon} ${name}: ${detail}`);
 }
 
+
+/**
+ * Phase 3이 실제로 읽는 쿠키 파일 상태. 브라우저 프로필의 localStorage와 달리
+ * 이 파일이 제출 성공 여부를 실제로 가르므로 preflight에서 같이 확인한다.
+ */
+function inspectCookieFile() {
+  const fs = require('fs');
+  const path = require('path');
+  const candidates = [
+    path.join(__dirname, '..', 'data', 'kmong-cookies.local.json'),
+    path.join(__dirname, '..', 'data', 'kmong-cookies.json'),
+  ];
+  const file = candidates.find(f => fs.existsSync(f));
+  if (!file) return { exists: false, usable: false, note: '' };
+
+  try {
+    const cookies = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const auth = cookies.find(c => c.name === 'x-kmong-authorization');
+    if (!auth) return { exists: true, usable: false, note: '액세스 토큰 쿠키 없음' };
+    const payload = JSON.parse(
+      Buffer.from(decodeURIComponent(auth.value).split('.')[1], 'base64url').toString()
+    );
+    const remaining = payload.exp - Math.floor(Date.now() / 1000);
+    return {
+      exists: true,
+      usable: remaining > 0,
+      note: remaining > 0 ? `${Math.round(remaining / 60)}분 남음` : '만료됨',
+    };
+  } catch (e) {
+    // 파싱 실패는 판단 보류 — 파일이 있으니 진행시키고 제출 단계에서 판정하게 둔다.
+    return { exists: true, usable: true, note: '' };
+  }
+}
+
 async function checkUrl(url, timeoutMs = 15000) {
   try {
     const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(timeoutMs), redirect: 'manual' });
@@ -87,13 +121,32 @@ async function checkUrl(url, timeoutMs = 15000) {
       if (kmongNet.reachable) {
         try {
           await page.goto('https://kmong.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await new Promise(r => setTimeout(r, 2500));
-          const linkText = await page.$$eval('a, button', els => els.map(e => e.textContent || '').join(' '));
-          const loggedIn = /마이크몽|로그아웃/.test(linkText);
-          const hasLoginLink = /로그인/.test(linkText) && /회원가입/.test(linkText);
-          const ok = loggedIn || !hasLoginLink;
-          record('크몽 로그인', ok,
-            ok ? '세션 유효' : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)',
+          // 기업(엔터프라이즈) 세션은 kmong.com/ 접속 시 /biz/... 로 클라이언트 사이드 리다이렉트가
+          // 일어난다 — domcontentloaded + 고정 sleep만으론 리다이렉트 도중에 걸려 execution
+          // context가 파괴되는 오류가 잦았다. networkidle까지 기다려 리다이렉트가 끝난 뒤 검사한다.
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+          await new Promise(r => setTimeout(r, 1500));
+          // 기업(비즈) 계정 UI는 "마이크몽"/"로그아웃" 문구가 페이지에 바로 안 보이고
+          // 프로필 드롭다운 안에만 있어 텍스트 매칭이 불안정하다 — 로그인 시 실제로
+          // 세팅되는 localStorage.kmongSessionId 존재 여부로 판단한다 (더 안정적).
+          const kmongSessionId = await page.evaluate(() => localStorage.getItem('kmongSessionId')).catch(() => null);
+          const linkText = await page.$$eval('a, button', els => els.map(e => e.textContent || '').join(' ')).catch(() => '');
+          const browserLoggedIn = !!kmongSessionId || /마이크몽|로그아웃/.test(linkText);
+
+          // 브라우저 프로필만 보면 안 된다. localStorage는 쿠키가 사라진 뒤에도 남아 있어
+          // "세션 유효"로 보이지만, Phase 3은 쿠키 파일을 직접 읽으므로 제출 단계에서
+          // "로그인 세션 없음"으로 깨진다(컨테이너 재생성 후 실제로 이렇게 됐다).
+          // 그래서 Phase 3이 실제로 쓰는 쿠키 파일의 존재와 토큰 수명까지 같이 본다.
+          const cookieState = inspectCookieFile();
+          const loggedIn = browserLoggedIn && cookieState.usable;
+          const detail = loggedIn
+            ? '세션 유효'
+            : !cookieState.exists
+              ? '쿠키 파일 없음 — import-session.js 로 세션 주입 필요 (브라우저 프로필만으론 제출 불가)'
+              : !cookieState.usable
+                ? `액세스 토큰 만료 — 세션 재주입 필요${cookieState.note ? ` (${cookieState.note})` : ''}`
+                : '비로그인 — import-session.js 로 세션 주입 필요 (Phase 3 실제 제출에만 필요)';
+          record('크몽 로그인', loggedIn, detail,
             { optional: DRY_RUN }); // dry-run 모드에서는 로그인 없어도 preflight 통과
         } catch (e) {
           record('크몽 로그인', false, `확인 실패: ${e.message.split('\n')[0]}`, { optional: DRY_RUN });

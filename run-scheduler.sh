@@ -54,6 +54,11 @@ if [ ! -d node_modules ]; then
   npm install --no-audit --no-fund >> "$LOG" 2>&1 || { echo "npm install 실패" | tee -a "$LOG"; exit 1; }
 fi
 
+# 1.5 로그인 세션 갱신
+#     액세스 토큰 수명이 1시간이라 매 회차 스스로 재발급해야 세션이 끊기지 않는다.
+#     환경변수가 없으면 아무것도 하지 않고 넘어가므로 실행을 막지 않는다.
+node scripts/kmong-refresh-session.js 2>&1 | tee -a "$LOG"
+
 # 2. 사전 점검
 node scripts/check-setup.js 2>&1 | tee -a "$LOG"
 PREFLIGHT=${PIPESTATUS[0]}
